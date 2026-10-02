@@ -86,15 +86,18 @@ makes that measurable:
   none for humans.
 
 ### Logs and storage
+Each match is written to `runs/<match_id>/` as it plays (this part exists;
+see [Run a match](#run-a-match)):
 ```
 runs/<match_id>/
-  meta.json                      config, seats, seed, ranked/unranked
-  events.jsonl                   full timeline with god view; replay uses this
-  bots/<bot_id>/decisions.jsonl  state seen, action, ctx.log notes, LLM calls, timing
-  bots/<bot_id>/stderr.log
+  meta.json                   config, seats, seed, bot versions, status, result
+  events.jsonl                full timeline with god view; replay uses this
+  bots/<bot>/decisions.jsonl  state seen, reply, applied action, ctx.log notes, timing
+  bots/<bot>/stderr.log
 ```
-A SQLite index lets you query across matches, for example "biggest losing
-hands for bot X, with its reasoning".
+Still planned: LLM calls in the decision records (phase 5), and a SQLite
+index for querying across matches, for example "biggest losing hands for
+bot X, with its reasoning" (phase 2).
 
 ### Arena server and lobby
 - Tables go through `open → filling → running → finished`.
@@ -149,11 +152,10 @@ memory.
 
 ## Roadmap
 
-1. **Core:** engine changes (fixed seats, configurable blinds,
-   `legal_actions()`, strict mode, rigged deals) and spots / starting
-   mid-hand / `arena spot/hand/equity`, and bot protocol v2 with the
-   `Seat` interface (fixing the stderr stall and `print()` bugs) are
-   **done**. Still to do: async match runner, event store.
+1. **Core** (**done**): engine changes (fixed seats, configurable blinds,
+   `legal_actions()`, strict mode, rigged deals, uncalled bets), spots and
+   `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
+   the async match runner, the run store and replay.
 2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
 4. **Human seats:** play mode with optional god view, edit and fork from
@@ -264,12 +266,34 @@ make test        # engine tests, including fuzzers
 ### Run a match
 
 ```bash
-python3 sandbox/match.py bots/shark/bot.py bots/aggressor/bot.py --hands 400 --seed 1
+arena match run bots/shark/bot.py bots/aggressor/bot.py bots/template/bot.py --hands 400 --seed 1
+```
+```
+match 20261002-141530-ab12 · 400 hands · seed 1 · 0.6s · hands_complete
+  bot             stack     delta  errors  restarts
+  shark          21,350   +11,350       0         0
+  ...
+run  runs/20261002-141530-ab12/   (arena match show 20261002-141530-ab12)
 ```
 
 Bots can be passed as a `.py` file, a directory containing `bot.py` (plus an
-optional `data/`), or a `.zip`. With `--seed`, the same bots get the same cards
-every time.
+optional `data/`), or a `.zip`. Every match has a seed (random if you don't
+pass `--seed`, and recorded); the same seed deals the same cards. Options:
+`--hands`, `--blinds 50/100`, `--stack`, `--timeout` (seconds per decision),
+`--id`, `--verbose`, `--json`, `--no-store`.
+(`python3 sandbox/match.py ...` still works and forwards here.)
+
+Everything goes to `runs/<id>/` as it happens (`tail -f
+runs/<id>/events.jsonl` to follow a match). The event types and record
+fields are documented in [arena/runs.py](arena/runs.py). To look at a run:
+
+```bash
+arena match list
+arena match show ID          # results, per-bot decisions/errors/corrections/timing, biggest pots
+arena match hand ID 26       # god view of hand 26, with each decision's ctx.log notes
+arena match hand ID 26 --at 4 --save my-spot   # the position before action 4, saved as a spot
+arena match verify ID        # replay every hand from the log and check the result
+```
 
 To run every bot in its own locked-down container instead of a local
 process:
@@ -278,7 +302,7 @@ process:
 brew install colima docker && colima start   # or Docker Desktop
 ./sandbox.sh build                           # builds poker-harness-sandbox:latest
 ./sandbox.sh security-check
-USE_DOCKER=true python3 sandbox/match.py bots/shark/bot.py bots/aggressor/bot.py
+arena match run --docker bots/shark/bot.py bots/aggressor/bot.py
 ```
 
 Containers have no network, a read-only filesystem, 768 MB and half a core
@@ -349,10 +373,13 @@ arena/spot.py         spots: notation parser, YAML/JSON files, replay into the e
 arena/equity.py       showdown equity (exact / Monte Carlo, ranges)
 arena/cli/            the `arena` command
 arena/seats.py        Seat interface: bot processes/containers, scripted and callback seats
+arena/match.py        async MatchRunner: plays a match through seats, records everything
+arena/runs.py         run store (runs/<id>/): writer, reader, event schema
+arena/replay.py       rebuild/verify hands from events; any point in a hand -> spot
 arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
 spots/                the spot library
-sandbox/match.py      multi-hand match runner; bots run as subprocesses or in Docker
+sandbox/match.py      upstream-compatible wrapper around arena/match.py (used by demo.py)
 sandbox/validator.py  checks bot code before accepting it
 sandbox/Dockerfile    isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
 bots/                 reference bots: template, aggressor, mathematician, shark, ref_bot_2

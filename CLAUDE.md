@@ -45,5 +45,11 @@ README.md for the goals, the planned architecture and the roadmap.
   Colima only shares `$HOME` with containers, so anything mounted into one
   must live under it. The Docker test in `tests/test_seats.py` skips if the
   `poker-harness-sandbox:latest` image isn't built (`./sandbox.sh build`).
+- Matches go through `arena/match.py` (MatchRunner) and are stored by
+  `arena/runs.py`; its docstring is the event/record schema, so keep it in
+  sync. Bump `SCHEMA_VERSION` for incompatible changes. Every hand must
+  still replay exactly (`arena match verify`, `tests/test_match.py`).
+- Tests must not write into the repo: point `ARENA_RUNS`, `ARENA_HOME` and
+  `ARENA_SPOTS` at `tmp_path` (or pass a `root`).
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
   Keep them working, but put new functionality in `arena/`.
