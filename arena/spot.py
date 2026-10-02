@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from arena.expect import ExpectError, validate as validate_expect
 from arena.engine.game import (
     BIG_BLIND, MAX_PLAYERS, SMALL_BLIND, STARTING_STACK, STREETS,
     PokerEngine, next_button, seat_positions,
@@ -93,6 +94,8 @@ class Spot:
     seed: Optional[int] = None
     name: Optional[str] = None
     description: Optional[str] = None
+    tags: list = field(default_factory=list)
+    expect: Optional[dict] = None    # expected answers, see arena/expect.py
 
     def __post_init__(self):
         if not self.stacks:
@@ -229,6 +232,10 @@ class Spot:
             d["name"] = self.name
         if self.description:
             d["description"] = self.description
+        if self.tags:
+            d["tags"] = list(self.tags)
+        if self.expect:
+            d["expect"] = dict(self.expect)
         d["players"] = self.players
         d["button"]  = self.button
         d["blinds"]  = f"{self.blinds[0]}/{self.blinds[1]}"
@@ -250,7 +257,8 @@ class Spot:
     def from_dict(cls, d: dict) -> "Spot":
         d = dict(d)
         unknown = set(d) - {"name", "description", "players", "button", "blinds",
-                            "stacks", "cards", "board", "actions", "to_act", "seed"}
+                            "stacks", "cards", "board", "actions", "to_act", "seed",
+                            "tags", "expect"}
         if unknown:
             raise SpotError(f"unknown spot fields: {sorted(unknown)}")
 
@@ -268,9 +276,16 @@ class Spot:
         blinds = d.get("blinds", (SMALL_BLIND, BIG_BLIND))
         blinds = parse_blinds(blinds) if isinstance(blinds, str) else tuple(int(b) for b in blinds)
 
+        tags = d.get("tags") or []
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        try:
+            expect = validate_expect(d.get("expect"))
+        except ExpectError as e:
+            raise SpotError(str(e)) from None
         spot = cls(players=players, stacks=stacks or [], blinds=blinds,
                    seed=d.get("seed"), name=d.get("name"),
-                   description=d.get("description"))
+                   description=d.get("description"), tags=list(tags), expect=expect)
 
         button = d.get("button")
         spot.button = (int(button) if button is not None
