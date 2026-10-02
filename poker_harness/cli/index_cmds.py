@@ -358,8 +358,9 @@ def cmd_sql(args):
 # parser
 # ---------------------------------------------------------------------------
 
-def _filters(p, bot_required=False):
-    p.add_argument("--bot", required=bot_required, help="bot id, as in arena match show")
+def _filters(p, with_bot=True):
+    if with_bot:
+        p.add_argument("--bot", help="only this bot (its id, as in arena match show)")
     p.add_argument("--version", help="bot version hash (prefix ok)")
     p.add_argument("--match", help="only this match")
     p.add_argument("--pos", help="position: BTN, SB, BB, UTG, HJ, CO, ...")
@@ -376,8 +377,8 @@ def add_parsers(sub):
     p.set_defaults(fn=cmd_index)
 
     p = sub.add_parser("stats", help="win rate with confidence interval, style stats, leaks")
-    p.add_argument("bot")
-    _filters(p)
+    p.add_argument("bot", help="the bot's id, as shown by arena match show")
+    _filters(p, with_bot=False)
     p.add_argument("--last", type=int, metavar="N", help="only the bot's last N matches")
     p.set_defaults(fn=cmd_stats)
 
