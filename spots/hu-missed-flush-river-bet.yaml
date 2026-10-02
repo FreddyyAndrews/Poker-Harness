@@ -1,0 +1,12 @@
+name: hu-missed-flush-river-bet
+description: 'HU: BTN missed nut flush draw, faces a river bet'
+players: 2
+button: 0
+blinds: 50/100
+stacks: 10000
+cards:
+  s0: Ah5h
+board: Kh8h2c|3s|7d
+actions: 'pre: s0 r250, s1 c; flop: s1 x, s0 r180, s1 c; turn: s1 x, s0 x; river:
+  s1 r600'
+to_act: s0

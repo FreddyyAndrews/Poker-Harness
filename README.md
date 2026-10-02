@@ -132,31 +132,27 @@ ratings and out of the default data agents learn from.
 - Every result has an ID, so agents only fetch full details when they need
   them.
 
-```bash
-# describe any situation in one line; unspecified cards are random (seedable)
-arena spot --players 6 --button 3 --stacks 10000 \
-  --cards "s0=AsKh s4=QdQc" --board "Kd7c2s|9h|" \
-  --actions "pre: s4 r300, s0 r1000, s4 c; flop: s4 x" --to-act s0
+`spot`, `spots`, `hand` and `equity` exist today (see
+[Using the arena CLI](#using-the-arena-cli)). Still planned:
 
+```bash
 arena probe mybot <spot> -n 20                  # how often it picks each action, plus short reasoning
 arena sweep mybot <spot> --vary bet=200..2000:200
 arena runout <spot> --seats mybot,shark --runs 500   # play to the end many times; EV per bot
-arena hand new|act|state <id>                   # step through a hand, controlling every seat
-arena equity AsKh QdQc --board Kd7c2s
 arena test mybot --suite river-spots            # saved spots with expected actions
 ```
 
-`spot`, `hand` and `equity` work offline, straight against the engine. Probes
-run in a separate bot process and can't write to the bot's memory.
+Probes will run in a separate bot process and can't write to the bot's
+memory.
 
 ---
 
 ## Roadmap
 
 1. **Core:** engine changes (fixed seats, configurable blinds,
-   `legal_actions()`, strict mode, rigged deals) are **done**. Still to do:
-   the `Seat` interface, async match runner, event store, starting
-   mid-hand, `arena spot/hand/equity`. Also
+   `legal_actions()`, strict mode, rigged deals) and spots / starting
+   mid-hand / `arena spot/hand/equity` are **done**. Still to do: the
+   `Seat` interface, async match runner, event store. Also
    fix two bot I/O bugs: stderr is never read (a bot that logs a lot stalls),
    and a bot's `print()` breaks the action protocol.
 2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
@@ -180,6 +176,79 @@ run in a separate bot process and can't write to the bot's memory.
 ---
 
 ## What works today
+
+### Using the arena CLI
+
+`make install` puts an `arena` command in `.venv/bin`. Every command runs
+without prompts, prints a short summary, and takes `--json` for the full
+structure. Errors exit with code 2 (as `{"error": ...}` with `--json`).
+
+**Describe a situation in one line.** Cards you don't fix are random from
+`--seed`. God view shows every hole card, the undealt runout and each
+player's equity:
+
+```bash
+arena spot --players 6 --button 3 --cards "BTN=AsKh BB=QdQc" --board "Kd7c2s|9h|" \
+  --actions "pre: BTN r250, BB r900, BTN c; flop: BB r600" --to-act BTN --seed 1
+```
+```
+spot · flop · pot 2,450 · s3 (BTN) to act   [seed 1, rigged]
+board  Kd 7c 2s   (runout: 9h 6d)
+
+   seat pos      stack    bet  state   cards  equity
+   s0   UTG     10,000      -  folded  (Ts2c)
+   ...
+ > s3   BTN      9,100      -  active  AsKh     91.2%
+   s5   BB       8,500    600  active  QdQc      8.8%
+
+line   pre: s3 r250, s5 r900, s3 c; flop: s5 r600
+legal  fold | call 600 | raise 1,200..9,100
+```
+
+| Field | Notation |
+|---|---|
+| `--cards` | `"s0=AsKh s4=QdQc"` or by position `"BTN=AsKh BB=QdQc"` |
+| `--board` | `"Kd7c2s\|9h\|"` (flop\|turn\|river); missing or `??` = random |
+| `--stacks` | `"10000"`, `"10000,5000,0"` (0 = busted, sits out), `"10000 s3=2500"` |
+| `--blinds` | `"50/100"` |
+| `--actions` | `"pre: BTN r250, BB c; flop: BB x"`: `f` fold, `x` check, `c` call, `rN` raise to N, `a` all-in |
+| `--to-act` | seat expected to act next (checked) |
+
+Positions are `BTN SB BB UTG UTG+1 UTG+2 LJ HJ CO`, or `s0`..`s8`. Naming a
+seat that isn't next makes the seats in between check if they can and fold
+otherwise, so `pre: BTN r250` means it folded to the button. Every spot is
+replayed through the real rules in strict mode, so an impossible line is an
+error, not a silently corrected one.
+
+**Spot library.** `--save NAME` writes `spots/NAME.yaml`, and `arena spots`
+lists the library. Use a saved spot by name, optionally overriding fields:
+`arena spot hu-missed-flush-river-bet --cards "BTN=AhKh"`. `--as-bot` prints
+the exact JSON the seat to act would receive, with no hidden information.
+
+**Step through a hand, controlling every seat:**
+
+```bash
+arena hand new 6max-tptk-vs-flop-lead   # or any spot options; prints h1
+arena hand act h1 c "BB r2000"          # several actions per call
+arena hand act h1 x                     # illegal: error lists the legal actions
+arena hand act h1 r100 --lenient        # corrected like a live match, with a note
+arena hand undo h1                      # -n N to take back more
+arena hand save h1 my-new-spot          # current position -> library
+arena hand state h1 [--as-bot] | arena hand list | arena hand rm h1
+```
+
+Hands live in `.arena/hands/` (`ARENA_HOME` to move them); the library in
+`spots/` (`ARENA_SPOTS`).
+
+**Equity** (exact from the flop on, seeded Monte Carlo otherwise; ranges in
+eval7 syntax, `any` for a random hand):
+
+```bash
+arena equity AsKh QdQc --board Kd7c2s
+arena equity AsAh "QQ+,AKs" any
+```
+
+### Inherited from upstream
 
 Everything below is inherited from upstream and still works.
 
@@ -245,7 +314,11 @@ The LLM broker will relax these rules for approved LLM calls.
 ```
 arena/engine/game.py  NLHE rules for one hand: fixed seats, legal_actions(), strict mode,
                       rigged deals, side pots, events
+arena/spot.py         spots: notation parser, YAML/JSON files, replay into the engine
+arena/equity.py       showdown equity (exact / Monte Carlo, ranges)
+arena/cli/            the `arena` command
 arena/tournament.py   Swiss pairing and standings
+spots/                the spot library
 sandbox/match.py      multi-hand match runner; bots run as subprocesses or in Docker
 sandbox/runner.py     the bot side: loads bot.py, JSON over stdin/stdout, timeouts
 sandbox/validator.py  checks bot code before accepting it

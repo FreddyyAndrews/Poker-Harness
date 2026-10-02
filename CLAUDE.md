@@ -33,5 +33,11 @@ README.md for the goals, the planned architecture and the roadmap.
   change must keep chip conservation and "never ask a busted or all-in seat
   to act".
 - Seats are fixed for a whole match; a seat with no chips sits out.
+- `arena/spot.py` owns the spot notation. Spots are always built by
+  replaying actions through the engine in strict mode; don't add a second
+  way to construct mid-hand states.
+- To check poker behaviour quickly, use the CLI (`.venv/bin/arena spot ...`,
+  `arena hand ...`, `arena equity ...`; `-h` on each). Example spots live in
+  `spots/`.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
   Keep them working, but put new functionality in `arena/`.

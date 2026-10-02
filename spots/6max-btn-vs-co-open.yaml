@@ -1,0 +1,8 @@
+name: 6max-btn-vs-co-open
+description: BTN facing a CO open, random cards
+players: 6
+button: 5
+blinds: 50/100
+stacks: 10000
+actions: 'pre: s4 r250'
+to_act: s5

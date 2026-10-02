@@ -1,0 +1,10 @@
+name: 6max-short-utg-shove
+description: 12bb UTG shove; HJ to act
+players: 6
+button: 0
+blinds: 50/100
+stacks: 10000,10000,10000,1200,10000,10000
+cards:
+  s3: 7c7d
+actions: 'pre: s3 a'
+to_act: s4

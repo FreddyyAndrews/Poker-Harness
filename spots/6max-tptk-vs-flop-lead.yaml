@@ -1,0 +1,12 @@
+name: 6max-tptk-vs-flop-lead
+description: BTN TPTK in a 3-bet pot facing a small BB lead
+players: 6
+button: 3
+blinds: 50/100
+stacks: 10000
+cards:
+  s3: AsKh
+  s5: QdQc
+board: Kd7c2s|9h|??
+actions: 'pre: s3 r250, s5 r900, s3 c; flop: s5 r600'
+to_act: s3
