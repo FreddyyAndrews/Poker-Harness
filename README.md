@@ -12,8 +12,8 @@ library of a three-repo system modelled on lichess and lichess-bot.
 cross-match queries, probes, test suites, duplicate comparisons and agent
 briefs, all from the `arena` CLI (see
 [What works today](#what-works-today)). The bot API is specified in
-[docs/bot-api.md](docs/bot-api.md); next are the bridge client and a mock
-server (see [Plan](#plan)).
+[docs/bot-api.md](docs/bot-api.md) and `arena connect` is the bridge that
+plays on it; next is a mock server to test against (see [Plan](#plan)).
 
 ---
 
@@ -77,7 +77,7 @@ sessions, and to improve a bot over many development sessions?
 | **Spot** | A poker situation set up on purpose: chosen cards, stacks and action so far. Can carry an expected answer for tests. |
 | **Probe** | Asking a bot "what would you do here?" without playing a game. |
 | **God view** | Seeing every player's hole cards and the whole deck. Local development only. |
-| **Bridge** | `arena connect` (planned): connects a bot to the arena, like lichess-bot. |
+| **Bridge** | `arena connect`: connects a bot to the arena, like lichess-bot. |
 
 ---
 
@@ -118,7 +118,8 @@ Work in this repo:
   validate every example in the spec against the models and check the
   engine's real decide state matches the documented one field for field.
 
-**T3. Bridge client (`arena connect`)**
+**T3. Bridge client (`arena connect`)** (**done**, v0.4.0; see
+[Connect a bot to the arena](#connect-a-bot-to-the-arena))
 - lichess-bot's job for poker: read `config.yml` (server, token, bot
   entry point, concurrency, which challenges to accept, optional
   matchmaking), open the event stream, accept challenges or join seeks,
@@ -512,6 +513,45 @@ pointers, not verdicts. The brief also lists the bot version's latest
 `arena test` runs and the bot's latest comparisons. `--json` gives the same
 content as structured data.
 
+### Connect a bot to the arena
+
+`arena connect` is the bridge between the arena and your bot, modelled on
+[lichess-bot](https://github.com/lichess-bot-devs/lichess-bot). It speaks
+the [bot API](docs/bot-api.md) and runs your `bot.py` locally for every
+decision, so the same file you develop with plays in production.
+
+```bash
+arena connect --init            # writes a commented config.yml
+export ARENA_TOKEN=...          # the bot's token from the arena website
+arena connect --check           # checks the token and settings
+arena connect                   # plays until Ctrl-C
+arena connect --max-matches 1   # plays one match, then exits
+```
+
+What it does:
+- Keeps the bot's event stream open, reconnecting with backoff.
+- Accepts or declines challenges by the `challenge` settings: how many
+  matches at once, table sizes, match length, slowest clock, rated or
+  casual, allow and block lists.
+- Optionally challenges online bots when idle (`matchmaking`: interval,
+  formats, opponents; cancels unanswered challenges and leaves a bot alone
+  for a while after it declines) and queues for tables (`seek`).
+- Plays each match with its own bot process (the same isolation,
+  timeouts and restarts as local matches; `bot.docker: true` for the
+  sandbox container). It answers each `decide` before the arena's
+  deadline minus `bot.time_margin_s`; if the bot fails, it sends the
+  fallback (check if free, otherwise fold) instead of letting the clock
+  run out. Your `ctx.log` notes go with each decision.
+- Reconnects to match streams and never answers a decision twice.
+- Ctrl-C once finishes current matches and takes no new ones; twice
+  leaves them.
+
+Every match is recorded from your bot's own perspective under
+`runs/arena/<match_id>/`: `meta.json`, `stream.jsonl` (every message
+received), `decisions.jsonl` (replies, what was applied, errors, notes,
+timing) and `stderr.log`. Only what the arena sent your bot is there:
+your cards, public actions and showdowns.
+
 ### The bot contract
 
 ```python
@@ -586,6 +626,7 @@ poker_harness/expect.py       expected answers for spots (used by arena test)
 poker_harness/compare.py      duplicate comparisons: seat rotations, paired statistics
 poker_harness/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 poker_harness/protocol/       arena bot API message models (spec: docs/bot-api.md) and JSON Schema export
+poker_harness/bridge/         arena connect: config, API client, the bridge loop, match records
 poker_harness/tournament.py   Swiss pairing and standings
 spots/                        the spot library; spots/suites/ holds test suites
 sandbox/match.py              upstream-compatible wrapper around poker_harness/match.py (used by demo.py)

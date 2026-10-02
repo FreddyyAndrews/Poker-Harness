@@ -76,5 +76,13 @@ README.md for the architecture and the plan (T1-T8).
   deals, confidence interval), not with a single match's chip count.
 - When changing a bot, run `arena test BOT --suite basics` (and any suite
   for that bot) before committing; exit code 1 means a spot failed.
+- The bridge (`poker_harness/bridge/`, `arena connect`) follows lichess-bot.
+  Its tests run against `tests/fake_arena.py`, a scriptable fake of the
+  bot API. Async code must run on Python 3.10: there `asyncio.wait_for`
+  can swallow a cancellation, so use `asyncio.wait` for timeouts in code
+  that may be cancelled, and don't rely on cancellation alone to stop
+  long-running loops.
+- Tests must be deterministic: give anything whose result depends on the
+  cards a seed or fixed cards.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
   Keep them working, but put new functionality in `poker_harness/`.
