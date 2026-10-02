@@ -8,6 +8,7 @@ import pytest
 from poker_harness.bridge import ArenaClient, ArenaError, Bridge, ConfigError, load_config
 from poker_harness.bridge.bridge import to_action_body
 from poker_harness.bridge.config import BridgeConfig
+from poker_harness.cli.main import main
 from fake_arena import FakeArena, challenge, decide, hand_end, match_end, match_full, match_ref
 
 CHECKER = """
@@ -338,8 +339,7 @@ def test_stop_now_leaves_matches(setup):
 def test_config_file_env_and_overrides(tmp_path, monkeypatch):
     monkeypatch.setenv("ARENA_TOKEN", "secret")
     path = tmp_path / "config.yml"
-    from poker_harness.bridge import DEFAULT_CONFIG
-    path.write_text(DEFAULT_CONFIG)
+    main(["connect", "--init", str(path)])
     cfg = load_config(str(path), {"url": "http://x", "bot.path": "b.py"})
     assert cfg.token == "secret" and cfg.url == "http://x" and cfg.bot.path == "b.py"
     assert cfg.challenge.concurrency == 1 and cfg.matchmaking.formats[0].seats == 2
@@ -349,3 +349,17 @@ def test_config_file_env_and_overrides(tmp_path, monkeypatch):
     path.write_text("url: http://x\ntoken: t\nchallenge: {modes: [ranked]}\n")
     with pytest.raises(ConfigError, match="challenge.modes"):
         load_config(str(path))
+
+
+def test_cli_init_refuses_to_overwrite(tmp_path, capsys):
+    path = tmp_path / "config.yml"
+    assert main(["connect", "--init", str(path)]) == 0
+    assert main(["connect", "--init", str(path)]) == 2
+    assert "already exists" in capsys.readouterr().err
+
+
+def test_cli_without_config_explains(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ARENA_TOKEN", raising=False)
+    assert main(["connect"]) == 2
+    assert "arena connect --init" in capsys.readouterr().err

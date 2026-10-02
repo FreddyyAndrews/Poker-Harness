@@ -26,6 +26,7 @@ full structure.
   arena compare A B [--field BOT...]   is A better than B? duplicate deals + confidence interval
   arena compares [ID]                  stored comparisons
   arena brief BOT|MATCH                short summary for an agent's context: result, leaks, hands
+  arena connect                        play on the arena: the bridge, like lichess-bot
 
 Run `arena <command> -h` for options. Spot notation is described in
 poker_harness/spot.py and `arena spot -h`.
@@ -36,7 +37,9 @@ import json
 import random
 import sys
 
-from poker_harness.cli import brief_cmds, compare_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds
+from poker_harness.cli import (
+    brief_cmds, compare_cmds, connect_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds,
+)
 from poker_harness.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
 from poker_harness.cli.spotargs import spot_from_args as _spot_from_args
 from poker_harness.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
@@ -324,6 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
     test_cmds.add_parser(sub)
     compare_cmds.add_parsers(sub)
     brief_cmds.add_parser(sub)
+    connect_cmds.add_parser(sub)
     return ap
 
 
@@ -332,7 +336,8 @@ def main(argv=None) -> int:
     try:
         return args.fn(args) or 0
     except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError,
-            probe_cmds.pr.ProbeError, compare_cmds.cmp.CompareError, brief_cmds.BriefError, IllegalActionError,
+            probe_cmds.pr.ProbeError, compare_cmds.cmp.CompareError, brief_cmds.BriefError,
+            connect_cmds.ConnectError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
         if getattr(args, "json", False):
             print(json.dumps({"error": str(e)}))
