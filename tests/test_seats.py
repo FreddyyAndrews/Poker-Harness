@@ -255,7 +255,8 @@ def test_callback_seat_sync_async_and_timeout():
 # Match runner and Docker
 # ---------------------------------------------------------------------------
 
-def test_match_survives_problem_bots(bot):
+def test_match_survives_problem_bots(bot, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARENA_RUNS", str(tmp_path / "runs"))
     sys.path.insert(0, str(Path(__file__).parent.parent / "sandbox"))
     import match
     paths = {
@@ -270,7 +271,8 @@ def test_match_survives_problem_bots(bot):
     assert r["bot_errors"]["chatty"] == []
     assert "crashed" in r["bot_errors"]["crashy"]
     assert r["bot_errors"]["broken"][0].startswith("load_failed")
-    assert any(e["type"] == "bot_restart" for e in r["bot_events"])
+    assert r["restarts"]["crashy"] > 0
+    assert (tmp_path / "runs" / "t" / "events.jsonl").exists()
 
 
 def _docker_image_ready():
