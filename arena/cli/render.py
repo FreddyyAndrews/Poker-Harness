@@ -6,9 +6,10 @@ from arena.spot import Spot
 PREFLOP_EQUITY_ITERS = 5_000
 
 
-def god_view(spot: Spot, eng, state, with_equity: bool = True) -> dict:
+def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = None) -> dict:
     """Everything about the position, including every hole card and the
-    undealt board. `spot` should already include all actions applied."""
+    undealt board. `spot` should already include all actions applied.
+    `names` optionally gives a bot id per seat."""
     positions = eng.positions()
     complete  = state["type"] == "hand_complete"
     dealt     = [str(c) for c in eng.community_cards]
@@ -24,6 +25,8 @@ def god_view(spot: Spot, eng, state, with_equity: bool = True) -> dict:
             "cards":  "".join(str(c) for c in p.hole_cards) or None,
             "start_stack": spot.stacks[p.seat],
         })
+        if names:
+            seats[-1]["bot_id"] = names[p.seat]
 
     eq = None
     contenders = [s for s in seats if s["state"] in ("active", "all_in")]
@@ -99,15 +102,19 @@ def god_view_text(view: dict, title: str = None) -> str:
     out.append(f"board  {board}" + (f"   (runout: {runout})" if runout else ""))
 
     has_eq = any("equity" in s for s in view["seats"])
+    bot_w  = max([len(s.get("bot_id", "")) for s in view["seats"]] + [0])
+    bot_w  = bot_w + 2 if bot_w else 0
     out.append("")
-    hdr = f"   {'seat':<5}{'pos':<6}{'stack':>8}{'bet':>7}  {'state':<7} cards"
+    hdr = (f"   {'seat':<5}" + (f"{'bot':<{bot_w}}" if bot_w else "")
+           + f"{'pos':<6}{'stack':>8}{'bet':>7}  {'state':<7} cards")
     out.append(hdr + ("  equity" if has_eq else ""))
     for s in view["seats"]:
         mark  = ">" if s["seat"] == view["to_act"] else " "
         cards = s["cards"] or "-"
         if s["state"] == "folded":
             cards = f"({cards})"
-        line = (f" {mark} {'s' + str(s['seat']):<5}{s['pos'] or '-':<6}"
+        bot   = f"{s.get('bot_id', ''):<{bot_w}}" if bot_w else ""
+        line = (f" {mark} {'s' + str(s['seat']):<5}{bot}{s['pos'] or '-':<6}"
                 f"{_chips(s['stack']):>8}{_chips(s['bet']) if s['bet'] else '-':>7}"
                 f"  {s['state']:<7} {cards:<6}")
         if "equity" in s:

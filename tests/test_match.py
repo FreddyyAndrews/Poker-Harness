@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from arena.cli.main import main
 from arena.match import MatchConfig, MatchRunner, bot_ids_for_paths, make_bot_seats
 from arena.replay import hand_to_spot, replay_hand, verify_run
 from arena.runs import Run, RunWriter
@@ -203,3 +204,48 @@ def test_hand_to_spot_stops_mid_hand(root):
     replayed, rstate = replay_hand(events, upto=2)
     assert state["seat_to_act"] == rstate["seat_to_act"] == actions[2]["seat"]
     assert state["your_cards"] == rstate["your_cards"]
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def cli(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("ARENA_RUNS", str(tmp_path / "runs"))
+    monkeypatch.setenv("ARENA_SPOTS", str(tmp_path / "spots"))
+
+    def run(*argv):
+        code = main(list(argv))
+        out = capsys.readouterr()
+        return code, out.out, out.err
+    return run
+
+
+def test_cli_match_flow(cli, tmp_path):
+    code, out, err = cli("match", "run", "bots/shark/bot.py", "bots/template/bot.py",
+                         "--hands", "40", "--seed", "3", "--id", "c1")
+    assert code == 0 and "match c1 · 40 hands · seed 3" in out
+    code, out, _ = cli("match", "list")
+    assert out.startswith("c1")
+    code, out, _ = cli("match", "show", "c1")
+    assert "decisions" in out and "biggest pots" in out
+    code, out, _ = cli("match", "hand", "c1", "0", "--no-equity")
+    assert "match c1 hand 0" in out and "decisions:" in out
+    code, out, _ = cli("match", "hand", "c1", "0", "--at", "0", "--save", "from-c1")
+    assert code == 0 and (tmp_path / "spots" / "from-c1.yaml").exists()
+    code, out, _ = cli("spot", "from-c1", "--no-equity")
+    assert code == 0 and "to act" in out
+    code, out, _ = cli("match", "verify", "c1")
+    assert code == 0 and "all match" in out
+    code, out, err = cli("match", "hand", "c1", "999")
+    assert code == 2 and "no hand 999" in err
+    code, out, err = cli("match", "run", "bots/shark/bot.py", "bots/template/bot.py", "--id", "c1")
+    assert code == 2 and "already exists" in err
+
+
+def test_cli_match_json(cli):
+    code, out, _ = cli("match", "run", "bots/shark/bot.py", "bots/shark/bot.py",
+                       "--hands", "5", "--seed", "1", "--no-store", "--json")
+    data = json.loads(out)
+    assert data["bot_ids"] == ["shark", "shark_2"] and data["run_dir"] is None
