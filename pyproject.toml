@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "poker-harness"
-version = "0.5.0"
+version = "0.5.1"
 description = "Poker bot toolkit: NLHE engine, bot protocol and a local development arena for LLM-built bots."
 readme = "README.md"
 license = { text = "MIT" }

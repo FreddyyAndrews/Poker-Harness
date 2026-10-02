@@ -1,36 +1,33 @@
 """
-arena: command-line tool for building poker situations and stepping
-through hands with full (god) view. Built for coding agents: every command
-runs to completion without prompts, output is short, and --json gives the
-full structure.
+arena: build, test and improve poker bots, then play them on the arena.
 
-  arena spot [REF] [spot options]      build/check a spot and show it
+Start here:  arena guide          (the workflow, conventions and file layout)
+Then:        arena COMMAND -h     (options and examples for any command)
+
+Every command runs to completion without prompts, prints a short summary,
+and takes --json for the full structure. Exit codes: 0 ok, 1 arena test
+had failures, 2 bad input or an error.
+
+  arena guide [TOPIC]                  how to use the toolkit
+  arena spot [REF] [spot options]      build/check a spot and show it in god view
   arena spots                          list the spot library
-  arena hand new [REF] [spot options]  start a hand you can step through
-  arena hand act ID ACTION...          apply actions (strict by default)
-  arena hand state ID                  show the current position
-  arena hand undo ID [-n N]            take back actions
-  arena hand save ID NAME              save the current position as a spot
-  arena hand list | rm ID
+  arena hand new|act|state|undo|save   step through a hand, controlling every seat
   arena equity HAND HAND... [--board]  showdown equity
-  arena match run BOT BOT...           play a match; stored in runs/<id>/
-  arena match list | show ID | hand ID N [--at K] | verify ID
-  arena stats BOT                      win rate (with confidence interval), style, leaks
+  arena match run BOT BOT...           play a match; recorded in runs/<id>/
+  arena match list|show|hand|verify    look at recorded matches
+  arena stats BOT                      win rate (with confidence interval), style, positions
   arena hands [filters]                find hands, e.g. --bot X --lost-more 2000
   arena decisions [filters]            find decisions with the bot's notes
-  arena sql "SELECT ..." | --schema    read-only SQL over the index
+  arena sql "SELECT ..." | --schema    read-only SQL over all recorded matches
+  arena brief BOT|MATCH                short summary for an agent: result, leaks, hands
   arena probe BOT SPOT [-n 20]         what does the bot do here? (or --from MATCH:HAND)
   arena sweep BOT SPOT --vary ...      ... and where does its answer flip?
   arena probes [ID]                    stored probes, sweeps and test runs
   arena test BOT [--suite NAME]        spots with expected answers; exit 1 on failure
   arena compare A B [--field BOT...]   is A better than B? duplicate deals + confidence interval
   arena compares [ID]                  stored comparisons
-  arena brief BOT|MATCH                short summary for an agent's context: result, leaks, hands
-  arena connect                        play on the arena: the bridge, like lichess-bot
   arena serve-mock                     a local arena with house bots, to test against
-
-Run `arena <command> -h` for options. Spot notation is described in
-poker_harness/spot.py and `arena spot -h`.
+  arena connect                        play on the arena: the bridge, like lichess-bot
 """
 
 import argparse
@@ -38,10 +35,12 @@ import json
 import random
 import sys
 
+from poker_harness.cli import guide as guide_cmds
 from poker_harness.cli import (
     brief_cmds, compare_cmds, connect_cmds, index_cmds, match_cmds, mock_cmds, probe_cmds, render,
     test_cmds,
 )
+from poker_harness.cli.helptext import finalize
 from poker_harness.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
 from poker_harness.cli.spotargs import spot_from_args as _spot_from_args
 from poker_harness.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
@@ -331,6 +330,8 @@ def build_parser() -> argparse.ArgumentParser:
     brief_cmds.add_parser(sub)
     connect_cmds.add_parser(sub)
     mock_cmds.add_parser(sub)
+    guide_cmds.add_parser(sub)
+    finalize(ap)
     return ap
 
 
