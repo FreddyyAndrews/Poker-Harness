@@ -12,8 +12,9 @@ library of a three-repo system modelled on lichess and lichess-bot.
 cross-match queries, probes, test suites, duplicate comparisons and agent
 briefs, all from the `arena` CLI (see
 [What works today](#what-works-today)). The bot API is specified in
-[docs/bot-api.md](docs/bot-api.md) and `arena connect` is the bridge that
-plays on it; next is a mock server to test against (see [Plan](#plan)).
+[docs/bot-api.md](docs/bot-api.md), `arena connect` is the bridge that
+plays on it, and `arena serve-mock` is a local arena to test against;
+next is own-perspective tooling for arena records (see [Plan](#plan)).
 
 ---
 
@@ -130,7 +131,8 @@ Work in this repo:
   of every production match from the bot's own perspective, so the local
   tools (`stats`, `brief`, `hands`) work on production games too.
 
-**T4. Mock server (`arena serve-mock`)**
+**T4. Mock server (`arena serve-mock`)** (**done**, v0.5.0; see
+[Test against a local arena](#test-against-a-local-arena))
 - A small local implementation of the bot API, backed by the engine and
   house bots. It lets the bridge and the template be tested end to end
   without production, and gives poker-arena a reference to check its
@@ -189,7 +191,7 @@ eval7 0.1.11 publishes no source package.
 From a clone:
 
 ```bash
-make install     # creates .venv with the newest python3.1x it finds, installs this package
+make install     # creates .venv with the newest python3.1x it finds, installs this package (+ dev, mock)
 source .venv/bin/activate
 make test        # all tests, including the engine fuzzers
 ```
@@ -552,6 +554,43 @@ received), `decisions.jsonl` (replies, what was applied, errors, notes,
 timing) and `stderr.log`. Only what the arena sent your bot is there:
 your cards, public actions and showdowns.
 
+### Test against a local arena
+
+`arena serve-mock` runs a local server that implements the whole
+[bot API](docs/bot-api.md), backed by the engine, with house bots that
+are always online. Use it to try `arena connect` (or your own client)
+end to end without production.
+
+```bash
+pip install 'poker-harness[mock]'     # FastAPI + uvicorn (included in [dev])
+arena serve-mock                      # bot "mybot", token "dev-token", on 127.0.0.1:8765
+arena connect --url http://127.0.0.1:8765 --token dev-token --bot bot/bot.py
+```
+
+- **House bots:** `house-caller`, `house-tight`, `house-aggro` and
+  `house-random` are built in; add any bot file with
+  `--house NAME=path/to/bot.py`. They accept every heads-up challenge, and
+  fill a waiting seek's table after `--fill-after` seconds, so one bot can
+  play 6-max on its own.
+- **Your bots:** `--bot NAME=TOKEN` registers a bot (repeatable), so two
+  bridges can challenge each other.
+- **Same rules as the spec:** challenges, seeks, clocks with a time bank,
+  check/fold on timeout, reconnecting with `match_full`, abort when a bot
+  never connects (`--connect-timeout`), leaving, and per-seat visibility.
+  Not modelled: accounts, ratings, rate limits.
+- **Server-side records:** every match is written to `runs/` with the full
+  god view, as the real arena does, so `arena match show/hand/verify` and
+  `arena brief` work on mock matches. Compare with the bridge's
+  own-perspective record in `runs/arena/`.
+
+To have the bridge find a game by itself, enable matchmaking in its
+config:
+
+```yaml
+matchmaking: {enabled: true, interval_s: 5, opponents: [house-tight],
+              formats: [{seats: 2, hands: 100, reset_stacks: true}]}
+```
+
 ### The bot contract
 
 ```python
@@ -627,6 +666,7 @@ poker_harness/compare.py      duplicate comparisons: seat rotations, paired stat
 poker_harness/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 poker_harness/protocol/       arena bot API message models (spec: docs/bot-api.md) and JSON Schema export
 poker_harness/bridge/         arena connect: config, API client, the bridge loop, match records
+poker_harness/mock/           arena serve-mock: in-memory arena, remote seats, house bots, FastAPI app
 poker_harness/tournament.py   Swiss pairing and standings
 spots/                        the spot library; spots/suites/ holds test suites
 sandbox/match.py              upstream-compatible wrapper around poker_harness/match.py (used by demo.py)

@@ -82,6 +82,11 @@ README.md for the architecture and the plan (T1-T8).
   can swallow a cancellation, so use `asyncio.wait` for timeouts in code
   that may be cancelled, and don't rely on cancellation alone to stop
   long-running loops.
+- The mock arena (`poker_harness/mock/`) is the reference implementation
+  of docs/bot-api.md's semantics for poker-arena. Its tests start a real
+  uvicorn server on a random port and connect the real bridge. The
+  engine's lenient action rules live in `lenient_action` (game.py), shared
+  with `normalize_action`; change them in one place.
 - Tests must be deterministic: give anything whose result depends on the
   cards a seed or fixed cards.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
