@@ -151,10 +151,9 @@ memory.
 
 1. **Core:** engine changes (fixed seats, configurable blinds,
    `legal_actions()`, strict mode, rigged deals) and spots / starting
-   mid-hand / `arena spot/hand/equity` are **done**. Still to do: the
-   `Seat` interface, async match runner, event store. Also
-   fix two bot I/O bugs: stderr is never read (a bot that logs a lot stalls),
-   and a bot's `print()` breaks the action protocol.
+   mid-hand / `arena spot/hand/equity`, and bot protocol v2 with the
+   `Seat` interface (fixing the stderr stall and `print()` bugs) are
+   **done**. Still to do: async match runner, event store.
 2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
 4. **Human seats:** play mode with optional god view, edit and fork from
@@ -272,6 +271,19 @@ Bots can be passed as a `.py` file, a directory containing `bot.py` (plus an
 optional `data/`), or a `.zip`. With `--seed`, the same bots get the same cards
 every time.
 
+To run every bot in its own locked-down container instead of a local
+process:
+
+```bash
+brew install colima docker && colima start   # or Docker Desktop
+./sandbox.sh build                           # builds poker-harness-sandbox:latest
+./sandbox.sh security-check
+USE_DOCKER=true python3 sandbox/match.py bots/shark/bot.py bots/aggressor/bot.py
+```
+
+Containers have no network, a read-only filesystem, 768 MB and half a core
+(`BOT_MEMORY`, `BOT_CPUS` to change).
+
 ### Demo UI
 
 ```bash
@@ -281,31 +293,50 @@ python3 demo.py   # http://localhost:5001  (DEMO_PORT to change)
 Six reference bots play single matches or a 3-round Swiss tournament, with a
 live log and hand replay. The planned frontend will replace this.
 
-### The bot contract (current)
+### The bot contract
 
 ```python
-def decide(game_state: dict) -> dict:
-    return {"action": "call"}
+def decide(state: dict, ctx) -> dict:      # or decide(state)
+    ctx.log("3-bet bluff", equity=0.31)    # saved with this decision
+    return {"action": "raise", "amount": 900}
+
+def warmup(ctx):                           # optional: runs once, before hand 1
+    ...                                    # (30s budget) - load tables here
 ```
 
 The state includes:
 - `your_cards`, `community_cards`, `street`
 - `pot`, `your_stack`, `amount_owed`, `can_check`
-- `current_bet`, `min_raise_to`, `your_bet_this_street`
-- `seat_to_act`, `players` (public info), `action_log` (this hand)
+- `current_bet`, `min_raise_to`, `your_bet_this_street`, `legal_actions`
+- `seat_to_act`, `dealer_seat`, `hand_num`, `small_blind`, `big_blind`
+- `players` (public info), `action_log` (this hand)
 - `match_action_log` (the last 200 actions across the match)
 
-Before hand 1, `decide()` is called once with `{"type": "warmup"}` and a 30s
-time limit.
+`ctx.log(msg=None, **data)` records structured notes (up to 200 per decision,
+16 KB each). `ctx.time_left()` is the seconds left in the decision's budget.
+`print()` is safe: it goes to the bot's stderr log, as does anything else
+written to stdout.
 
 Valid actions are `fold`, `check`, `call`, `{"action": "raise", "amount": N}`
 (N is the **total** bet, not the amount added on top) and `all_in`. Out-of-range
 raises are adjusted to a legal amount, and invalid actions become folds.
 
-Rules today:
-- 2s per decision (`ACTION_TIMEOUT`).
-- `sandbox/validator.py` rejects network, subprocess, threading and pickle
-  imports, and `eval`/`exec`.
+When a decision fails, the bot checks if it can and folds otherwise:
+- **Timeout** (2s, `ACTION_TIMEOUT`): the bot's process is also restarted,
+  since its stuck code can't be stopped any other way. Module-level state is
+  lost.
+- **Crash**: restarted the same way.
+- **Exception or bad return value**: no restart; the bot keeps its state.
+- **Fails to load**: every decision checks/folds.
+
+After 5 restarts in a match the bot stops being restarted and always
+checks/folds.
+
+`sandbox/validator.py` rejects network, subprocess, threading and pickle
+imports, and `eval`/`exec`.
+
+The protocol between host and bot is newline-delimited JSON; see
+[arena/runner/bot_runner.py](arena/runner/bot_runner.py).
 
 The LLM broker will relax these rules for approved LLM calls.
 
@@ -317,10 +348,11 @@ arena/engine/game.py  NLHE rules for one hand: fixed seats, legal_actions(), str
 arena/spot.py         spots: notation parser, YAML/JSON files, replay into the engine
 arena/equity.py       showdown equity (exact / Monte Carlo, ranges)
 arena/cli/            the `arena` command
+arena/seats.py        Seat interface: bot processes/containers, scripted and callback seats
+arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
 spots/                the spot library
 sandbox/match.py      multi-hand match runner; bots run as subprocesses or in Docker
-sandbox/runner.py     the bot side: loads bot.py, JSON over stdin/stdout, timeouts
 sandbox/validator.py  checks bot code before accepting it
 sandbox/Dockerfile    isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
 bots/                 reference bots: template, aggressor, mathematician, shark, ref_bot_2
