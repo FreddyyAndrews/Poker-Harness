@@ -1,10 +1,12 @@
 """Probes and sweeps, with bots whose answers are known in advance."""
 import asyncio
+import json
 import textwrap
 
 import pytest
 
 from arena import probe as pr
+from arena.cli.main import main
 from arena.match import MatchConfig, MatchRunner, make_bot_seats
 from arena.runs import Run, RunWriter
 from arena.spot import Spot
@@ -190,3 +192,62 @@ def test_expand_vary_errors(vary, msg):
 def test_bet_axis_needs_a_raise():
     with pytest.raises(pr.ProbeError, match="no raise"):
         pr.expand_vary(Spot.from_dict({"players": 2, "actions": "pre: c"}), ["bet=1,2"])
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def cli(env, capsys):
+    def run(*argv):
+        code = main(list(argv))
+        out = capsys.readouterr()
+        return code, out.out, out.err
+    return run
+
+
+def spot_args(d):
+    out = []
+    for k, v in d.items():
+        out += [f"--{k.replace('_', '-')}", str(v)]
+    return out
+
+
+def test_cli_probe_and_show(cli, bot):
+    path = bot("t", THRESHOLD)
+    code, out, err = cli("probe", path, *spot_args(FACING_600), "-n", "3")
+    assert code == 0 and "fold" in out and "100%" in out and "facing 600" in out
+    pid = out.split()[1]
+    code, out, _ = cli("probes")
+    assert pid in out and "mostly fold" in out
+    code, out, _ = cli("probes", pid, "--verbose")
+    assert "samples:" in out and 'log: owed {"owed": 600}' in out
+    code, out, _ = cli("probe", path, *spot_args(FACING_600), "-n", "2", "--json")
+    data = json.loads(out)
+    assert data["summary"]["freq"] == {"fold": 1.0} and data["bot"]["version"]
+
+
+def test_cli_probe_from_match(cli, adaptive_match):
+    run, rec, paths = adaptive_match
+    code, out, err = cli("probe", "--from", f"m:{rec['hand_num']}", "--warm", "-n", "1")
+    assert code == 0 and "in the match:" in out and "warmed with" in out
+
+
+def test_cli_probe_argument_errors(cli, bot, adaptive_match):
+    code, _, err = cli("probe", bot("t", THRESHOLD), *spot_args(FACING_600), "--warm")
+    assert code == 2 and "--warm needs --from" in err
+    code, _, err = cli("probe")
+    assert code == 2 and "give a BOT" in err
+    code, _, err = cli("probe", "--from", "nonsense")
+    assert code == 2 and "MATCH:HAND" in err
+
+
+def test_cli_sweep(cli, bot):
+    code, out, err = cli("sweep", bot("t", THRESHOLD), *spot_args(FACING_600),
+                         "--vary", "bet=300,700", "-n", "1")
+    assert code == 0 and "bet 700" in out and "< call -> fold" in out
+    code, out, _ = cli("sweep", bot("t", THRESHOLD), *spot_args(FACING_600),
+                       "--vary", "bet=300,100000", "-n", "1", "--json")
+    rows = json.loads(out)["variants"]
+    assert rows[1]["invalid"] and "summary" not in rows[1]

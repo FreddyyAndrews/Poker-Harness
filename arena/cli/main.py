@@ -19,6 +19,9 @@ full structure.
   arena hands [filters]                find hands, e.g. --bot X --lost-more 2000
   arena decisions [filters]            find decisions with the bot's notes
   arena sql "SELECT ..." | --schema    read-only SQL over the index
+  arena probe BOT SPOT [-n 20]         what does the bot do here? (or --from MATCH:HAND)
+  arena sweep BOT SPOT --vary ...      ... and where does its answer flip?
+  arena probes [ID]                    stored probes and sweeps
 
 Run `arena <command> -h` for options. Spot notation is described in
 arena/spot.py and `arena spot -h`.
@@ -29,24 +32,14 @@ import json
 import random
 import sys
 
-from arena.cli import index_cmds, match_cmds, render
-from arena.cli.store import HandStore, find_spot, list_spots, save_spot, spots_dir
+from arena.cli import index_cmds, match_cmds, probe_cmds, render
+from arena.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
+from arena.cli.spotargs import spot_from_args as _spot_from_args
+from arena.cli.store import HandStore, list_spots, save_spot, spots_dir
 from arena.engine.game import IllegalActionError
 from arena.equity import DEFAULT_ITERS, equity
 from arena.spot import Spot, SpotError, parse_action_token
 
-SPOT_HELP = """\
-spot notation:
-  --cards   "s0=AsKh s4=QdQc" or "BTN=AsKh BB=QdQc"   (others random)
-  --board   "Kd7c2s|9h|"  flop|turn|river; ?? or missing = random (quote it)
-  --stacks  "10000" | "10000,5000,0" (0 = busted) | "10000 s3=2500"
-  --blinds  "50/100"
-  --actions "pre: BTN r250, BB r900, BTN c; flop: BB x"
-            f fold, x check, c call, rN raise to N, a all-in. Naming a
-            seat that isn't next makes the seats in between check or fold.
-  --to-act  seat expected to act after the actions (checked)
-  positions: BTN SB BB UTG UTG+1 UTG+2 LJ HJ CO (or s0..s8)
-"""
 
 
 class CliError(Exception):
@@ -56,34 +49,6 @@ class CliError(Exception):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _add_spot_options(p):
-    g = p.add_argument_group("spot options (override REF's fields)")
-    g.add_argument("--players", type=int)
-    g.add_argument("--button", help="button seat number")
-    g.add_argument("--stacks")
-    g.add_argument("--blinds")
-    g.add_argument("--cards")
-    g.add_argument("--board")
-    g.add_argument("--actions")
-    g.add_argument("--to-act", dest="to_act")
-    g.add_argument("--seed", type=int)
-    g.add_argument("--name")
-    g.add_argument("--desc", dest="description")
-
-
-def _spot_from_args(args) -> Spot:
-    base = Spot.load(find_spot(args.ref)).to_dict() if getattr(args, "ref", None) else {}
-    for key in ("players", "button", "stacks", "blinds", "cards", "board",
-                "actions", "to_act", "seed", "name", "description"):
-        val = getattr(args, key, None)
-        if val is not None:
-            base[key] = val
-    if args.players is not None and args.stacks is None and "stacks" in base \
-            and "," in str(base["stacks"]):
-        raise CliError("--players conflicts with the spot's per-seat stacks; pass --stacks too")
-    return Spot.from_dict(base)
-
 
 def _emit(args, view_or_data, text: str):
     if getattr(args, "json", False):
@@ -347,6 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     match_cmds.add_parser(sub)
     index_cmds.add_parsers(sub)
+    probe_cmds.add_parsers(sub)
     return ap
 
 
@@ -355,7 +321,8 @@ def main(argv=None) -> int:
     try:
         args.fn(args)
         return 0
-    except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError, IllegalActionError,
+    except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError,
+            probe_cmds.pr.ProbeError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
         if getattr(args, "json", False):
             print(json.dumps({"error": str(e)}))
