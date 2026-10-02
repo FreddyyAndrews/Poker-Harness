@@ -1,0 +1,14 @@
+name: check-when-free
+description: 'BB with the option after a limp: checking is free, folding never better'
+tags:
+- preflop
+- free-check
+expect:
+  not:
+  - fold
+players: 2
+button: 0
+blinds: 50/100
+stacks: 10000
+actions: 'pre: s0 c'
+to_act: s1

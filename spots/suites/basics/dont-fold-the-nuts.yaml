@@ -1,0 +1,18 @@
+name: dont-fold-the-nuts
+description: BB has a royal flush facing a river bet
+tags:
+- river
+- nuts
+expect:
+  not:
+  - fold
+players: 2
+button: 0
+blinds: 50/100
+stacks: 10000
+cards:
+  s1: AhKh
+board: QhJhTh|2c|3d
+actions: 'pre: s0 r250, s1 c; flop: s1 x, s0 r300, s1 c; turn: s1 x, s0 x; river:
+  s1 x, s0 r600'
+to_act: s1

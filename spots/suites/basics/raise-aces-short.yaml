@@ -1,0 +1,16 @@
+name: raise-aces-short
+description: 10bb on the button with AA, folded to you
+tags:
+- preflop
+- short-stack
+expect:
+  action:
+  - raise
+players: 6
+button: 0
+blinds: 50/100
+stacks: 1000,10000,10000,10000,10000,10000
+cards:
+  s0: AsAh
+actions: 'pre: s5 f'
+to_act: s0
