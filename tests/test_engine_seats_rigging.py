@@ -317,3 +317,39 @@ def test_fuzz_lenient_junk_actions():
         while state["type"] == "action_request":
             _check_request(eng, state)
             state = eng.apply_action(state["seat_to_act"], rng.choice(junk))
+
+
+# ---------------------------------------------------------------------------
+# Uncalled bets
+# ---------------------------------------------------------------------------
+
+def test_uncalled_raise_is_returned_not_won():
+    eng = make([10_000] * 3, dealer=0)
+    eng.start_hand()
+    eng.apply_action(0, {"action": "raise", "amount": 250})
+    eng.apply_action(1, {"action": "fold"})
+    result = eng.apply_action(2, {"action": "fold"})
+    assert result["uncalled"] == {"seat": 0, "bot_id": "s0", "amount": 150}
+    assert result["winners"] == [{"bot_id": "s0", "seat": 0, "amount": 250, "pot_type": "main"}]
+    assert result["pot"] == 250
+    assert result["final_stacks"]["s0"] == 10_150
+    types = [e["type"] for e in result["events"]]
+    assert types.index("uncalled_bet_returned") < types.index("uncontested_win")
+
+
+def test_uncalled_excess_over_short_all_in_is_returned():
+    eng = make([30, 10_000], dealer=0)       # SB all-in for 30 posting
+    result = eng.start_hand()
+    assert result["uncalled"] == {"seat": 1, "bot_id": "s1", "amount": 70}
+    assert [w["pot_type"] for w in result["winners"]] == ["main"]
+    assert sum(w["amount"] for w in result["winners"]) == 60
+
+
+def test_fully_called_pot_returns_nothing():
+    eng = make([10_000] * 2, dealer=0)
+    eng.start_hand()
+    eng.apply_action(0, {"action": "call"})
+    result = eng.apply_action(1, {"action": "check"})
+    while result["type"] == "action_request":
+        result = eng.apply_action(result["seat_to_act"], {"action": "check"})
+    assert result["uncalled"] is None

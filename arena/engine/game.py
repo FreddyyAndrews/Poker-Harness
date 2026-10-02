@@ -14,6 +14,9 @@ Forked from the Fullhouse Hackathon engine v2.0. On top of upstream:
   - When no further betting is possible (everyone left is all-in, or one
     player who owes nothing), the board runs out without asking anyone
   - Every street dealt during a run-out gets a street_start event
+  - Uncalled bets are returned to the bettor before the pot is awarded
+    (an uncalled_bet_returned event), instead of being reported as a pot
+    the bettor "won"
 """
 
 import eval7
@@ -211,6 +214,7 @@ class PokerEngine:
         self._starting_stacks = {}         # snapshot before hand starts
         self.to_act: Optional[int] = None  # seat we're waiting on
         self.is_complete      = False
+        self.uncalled: Optional[dict] = None   # {seat, bot_id, amount} if returned
 
         self._hole_plan, self._board_plan = self._plan_deal(hole_cards, board)
         self.rigged = bool(hole_cards) or any(c is not None for c in (board or []))
@@ -317,6 +321,11 @@ class PokerEngine:
         """All five board cards this hand will deal, including undealt ones
         (god view only; never show this to a bot)."""
         return [str(c) for c in self._board_plan]
+
+    @property
+    def hole_plan(self) -> dict:
+        """{seat: ["As", "Kh"]} for every seat dealt in (god view only)."""
+        return {seat: [str(c) for c in cards] for seat, cards in self._hole_plan.items()}
 
     @property
     def waiting_on(self) -> frozenset:
@@ -650,7 +659,23 @@ class PokerEngine:
     # Resolution
     # -----------------------------------------------------------------------
 
+    def _return_uncalled(self):
+        """Give the top bettor back whatever nobody else matched: it was
+        never contested, so it isn't part of any pot."""
+        by_invested = sorted(self.players, key=lambda p: -p.total_invested)
+        top, second = by_invested[0], by_invested[1]
+        excess = top.total_invested - second.total_invested
+        if excess <= 0:
+            return
+        top.stack          += excess
+        top.total_invested -= excess
+        top.bet_this_street = max(0, top.bet_this_street - excess)
+        self.pot           -= excess
+        self.uncalled = {"seat": top.seat, "bot_id": top.bot_id, "amount": excess}
+        self._emit("uncalled_bet_returned", dict(self.uncalled))
+
     def _showdown(self) -> dict:
+        self._return_uncalled()
         contenders = [p for p in self.players if p.in_hand]
         if len(contenders) == 1:
             return self._award_uncontested(contenders[0])
@@ -704,6 +729,7 @@ class PokerEngine:
                                   revealed=revealed, hand_strengths=hand_strengths)
 
     def _award_uncontested(self, winner: Player) -> dict:
+        self._return_uncalled()
         winner.stack += self.pot
         result = [{"bot_id": winner.bot_id, "seat": winner.seat,
                    "amount": self.pot, "pot_type": "main"}]
@@ -836,5 +862,6 @@ class PokerEngine:
             "hand_strengths":  hand_strengths or {},
             "action_log":      list(self.action_log),
             "events":          list(self.events),
+            "uncalled":        self.uncalled,
             "final_stacks":    {p.bot_id: p.stack for p in self.players},
         }
