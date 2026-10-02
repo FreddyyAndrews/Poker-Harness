@@ -1,225 +1,260 @@
-# Fullhouse Engine
+# Poker Harness
 
-> The UK's first quantitative poker bot competition — 1-5 June 2026, London
-> **£4,000 prize pool · Sponsored by Quadrature Capital**
+> An LLM poker arena: coding agents write poker bots, play them against each
+> other (and against humans), read structured logs of what happened, and
+> improve their bots over time.
 
-Build a Python bot that plays No-Limit Texas Hold'em. This repo has everything you need to write and test your bot locally — the full game engine, sandbox runner, reference bots, and validator.
+This is a fork of [fullhouse-engine](https://github.com/uzlez/fullhouse-engine),
+the engine from the 2026 Fullhouse Hackathon. We keep its No-Limit Hold'em
+engine and bot protocol, and build an arena around them.
+
+**Status:** early. The upstream engine, match runner and reference bots work
+today (see [What works today](#what-works-today)). Everything else in this
+README is the plan.
 
 ---
 
-## How it works
+## The research question
 
-You submit one file — `bot.py` — with one function:
+How should an LLM manage its context to play well over long poker sessions?
+
+A bot in this arena can call LLMs while it decides what to do. Across hundreds
+of hands and many matches, it has to decide what to remember, what to
+summarise, what to forget, and what to carry into the next match. The arena
+makes that measurable:
+
+- **Bots** play heads-up or at full tables (2–9 seats).
+- **Coding agents** write and revise bots, using a CLI to build test
+  situations, probe their bots' decisions and query match logs.
+- **Humans** watch matches live, step through replays, and sit in to play the
+  bots directly.
+- **Everything is logged**: every action, every bot's internal notes, and every
+  LLM prompt and response.
+
+---
+
+## Concepts
+
+| Term | Meaning |
+|------|---------|
+| **Bot** | A `bot.py` with a `decide(state, ctx)` function. It doesn't act on its own; it only answers when asked for a decision. |
+| **Controller** | Whoever manages bots: a coding agent, a scheduler, or a human. Controllers create tables, queue bots and read results. |
+| **Seat** | A place at a table. It can hold a hosted bot, a human, or (later) a remote client. |
+| **Table / match** | A game with a mode (heads-up or N-max), a number of hands, blinds, time per decision and an LLM budget. |
+| **Spot** | A poker situation set up on purpose: chosen hole cards, board, stacks and action so far. Used for testing bots. |
+| **Probe** | Asking a bot "what would you do here?" without moving a game forward or changing the bot's memory. |
+| **God view** | Seeing every player's hole cards and the full deck. |
+
+---
+
+## Planned architecture
+
+```
+           Frontend (lobby / watch / replay / play)
+                    │  WebSocket + REST
+          ┌─────────▼──────────┐        arena CLI / MCP
+          │   Arena server     │◄────── (coding agents)
+          │ lobby, matchmaking │
+          └─────────┬──────────┘
+                    │
+          MatchRunner (async) ──► EventStore (JSONL per match + SQLite index)
+           │        │         │
+       BotSeat   LLMBotSeat  HumanSeat     ← one Seat.act(state) interface
+           │        │
+     runner.py ◄──► LLM broker (host side: API keys, model allowlist,
+                                budgets, logging of every call)
+```
+
+### Engine
+- Based on `engine/game.py`. The poker rules stay as they are.
+- Seats stay fixed for the whole match (today they're renumbered when a player
+  busts), and each bot's state includes `dealer_seat`.
+- A full-information `hand_start` event (every player's hole cards, the deck
+  order) goes to the log only. Bots never see it.
+- Rigged deals and starting mid-hand, so any situation can be built and
+  replayed exactly.
+
+### Bots and LLM access
+- Bots receive a `ctx` object: `decide(state, ctx)`.
+  - `ctx.llm(messages, model=...)`: an LLM call made **by the host**, not the
+    bot. The bot process has no network access and never holds API keys.
+  - `ctx.log(...)`: structured notes saved with each decision.
+  - `ctx.memory`: a per-bot store that persists across matches.
+- The host enforces which models are allowed and token/cost limits per
+  decision, match and bot, and logs every call.
+- Time limits are set per seat: fast for rule-based bots, longer for LLM bots,
+  none for humans.
+
+### Logs and storage
+```
+runs/<match_id>/
+  meta.json                      config, seats, seed, ranked/unranked
+  events.jsonl                   full timeline with god view; replay uses this
+  bots/<bot_id>/decisions.jsonl  state seen, action, ctx.log notes, LLM calls, timing
+  bots/<bot_id>/stderr.log
+```
+A SQLite index lets you query across matches, for example "biggest losing
+hands for bot X, with its reasoning".
+
+### Arena server and lobby
+- Tables go through `open → filling → running → finished`.
+- Controllers can create tables, seat bots, or queue a bot for a game mode
+  and let the matchmaker fill tables (with per-mode ratings).
+- A scheduler runs ladders, round-robins and long unattended simulations.
+- Bot-only matches run as fast as possible. Viewers watch at a speed they
+  choose (1×, 4×, step by step). Tables with a human run at human speed.
+
+### Who can see what
+| Viewer | Hole cards visible |
+|--------|--------------------|
+| Seated bot | Its own cards only, always |
+| Human player | Own cards, or god view if they turn it on |
+| Spectator | Public view (showdown only) or god view |
+| Anyone, after the match | Everything, including bot reasoning and LLM calls |
+
+Bots and the agents controlling them can **never** see hidden information in a
+live match they're playing in. Any match with a god-view seat, a rigged deal or
+an edited state is marked `unranked`. It's still logged, but it stays out of
+ratings and out of the default data agents learn from.
+
+### Frontend
+- **Lobby:** create and join tables, pick bots and seats, see running matches.
+- **Live table:** watch with either public or god view.
+- **Replay:** scrub through any match one action at a time.
+- **Play:** take a seat against the bots, with god view optional.
+- **Bot inspector:** each decision's notes and LLM reasoning.
+- **Edit and fork:** stop a replay at any decision, change something, then
+  continue as a new match or a probe.
+
+### `arena` CLI (built for coding agents)
+- Commands never wait for interactive input.
+- Default output is terse, with `--json` and `--verbose` when needed.
+- Every result has an ID, so agents only fetch full details when they need
+  them.
+
+```bash
+# describe any situation in one line; unspecified cards are random (seedable)
+arena spot --players 6 --button 3 --stacks 10000 \
+  --cards "s0=AsKh s4=QdQc" --board "Kd7c2s|9h|" \
+  --actions "pre: s4 r300, s0 r1000, s4 c; flop: s4 x" --to-act s0
+
+arena probe mybot <spot> -n 20                  # how often it picks each action, plus short reasoning
+arena sweep mybot <spot> --vary bet=200..2000:200
+arena runout <spot> --seats mybot,shark --runs 500   # play to the end many times; EV per bot
+arena hand new|act|state <id>                   # step through a hand, controlling every seat
+arena equity AsKh QdQc --board Kd7c2s
+arena test mybot --suite river-spots            # saved spots with expected actions
+```
+
+`spot`, `hand` and `equity` work offline, straight against the engine. Probes
+run in a separate bot process and can't write to the bot's memory.
+
+---
+
+## Roadmap
+
+1. **Core:** the `Seat` interface, fixed seats, async match runner, event
+   store, rigged deals, starting mid-hand, `arena spot/hand/equity`. Also
+   fix two bot I/O bugs: stderr is never read (a bot that logs a lot stalls),
+   and a bot's `print()` breaks the action protocol.
+2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
+3. **Server and frontend:** lobby, live view, replay, bot inspector.
+4. **Human seats:** play mode with optional god view, edit and fork from
+   replay.
+5. **LLM bots:** the host-side broker, `ctx.llm` / `ctx.memory`, budgets.
+6. **Agent loop:** matchmaking, ratings, scheduler, MCP server, and workflows
+   where agents write, test and improve bots.
+
+### Open decisions
+- Which LLM providers to support (Anthropic only, or several via LiteLLM),
+  and whether bots pick models or the harness assigns them.
+- Whether to keep Docker isolation, or rely on subprocess isolation plus the
+  broker for local-only use.
+- Frontend stack (React/Vite + FastAPI is the working assumption).
+- Single user (one machine) or multiple users with accounts.
+- Whether to support remote bot seats (outside processes playing over
+  WebSocket).
+
+---
+
+## What works today
+
+Everything below is inherited from upstream and still works.
+
+### Install
+
+Use Python 3.10. eval7 doesn't build on 3.11+.
+
+```bash
+make install     # installs Cython<3, then eval7 with --no-build-isolation, then the rest
+make test        # engine unit tests
+```
+
+### Run a match
+
+```bash
+python3 sandbox/match.py bots/shark/bot.py bots/aggressor/bot.py --hands 400 --seed 1
+```
+
+Bots can be passed as a `.py` file, a directory containing `bot.py` (plus an
+optional `data/`), or a `.zip`. With `--seed`, the same bots get the same cards
+every time.
+
+### Demo UI
+
+```bash
+python3 demo.py   # http://localhost:5001  (DEMO_PORT to change)
+```
+
+Six reference bots play single matches or a 3-round Swiss tournament, with a
+live log and hand replay. The planned frontend will replace this.
+
+### The bot contract (current)
 
 ```python
 def decide(game_state: dict) -> dict:
-    # your entire strategy goes here
     return {"action": "call"}
 ```
 
-The engine calls `decide()` once per action. You get the full game state — your cards, community cards, pot size, stack sizes, betting history, position. You return one action. That's it.
+The state includes:
+- `your_cards`, `community_cards`, `street`
+- `pot`, `your_stack`, `amount_owed`, `can_check`
+- `current_bet`, `min_raise_to`, `your_bet_this_street`
+- `seat_to_act`, `players` (public info), `action_log` (this hand)
+- `match_action_log` (the last 200 actions across the match)
 
----
+Before hand 1, `decide()` is called once with `{"type": "warmup"}` and a 30s
+time limit.
 
-## Getting started
+Valid actions are `fold`, `check`, `call`, `{"action": "raise", "amount": N}`
+(N is the **total** bet, not the amount added on top) and `all_in`. Out-of-range
+raises are adjusted to a legal amount, and invalid actions become folds.
 
-```bash
-git clone https://github.com/uzlez/fullhouse-engine
-cd fullhouse-engine
+Rules today:
+- 2s per decision (`ACTION_TIMEOUT`).
+- `sandbox/validator.py` rejects network, subprocess, threading and pickle
+  imports, and `eval`/`exec`.
 
-# eval7 needs Cython<3 at build time and won't pick it up via build isolation
-pip3 install "Cython<3"
-pip3 install --no-build-isolation eval7==0.1.7
-pip3 install flask numpy scipy treys scikit-learn
+The LLM broker will relax these rules for approved LLM calls.
 
-python3 demo.py
+### Repo layout
+
 ```
-
-Open `http://localhost:5001` — you'll see 6 reference bots playing each other live with a real-time leaderboard and hand replay.
-
-> **macOS users**: we use port 5001 instead of the Flask default 5000 because macOS Monterey+ binds port 5000 to AirPlay Receiver. Override with `DEMO_PORT=8080 python3 demo.py` if 5001 is taken too.
-
-> Hitting a build error on `eval7`? You're not alone — modern pip's build
-> isolation breaks it. The two-step install above is the workaround. We have
-> a `Makefile` target too: `make install`.
-
----
-
-## Writing your bot
-
-Copy the template and edit the `decide()` function:
-
-```bash
-cp -r bots/template bots/mybot
-# edit bots/mybot/bot.py
-```
-
-**Game state your bot receives:**
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `your_cards` | `list[str]` | Your two hole cards e.g. `["As", "Kh"]` |
-| `community_cards` | `list[str]` | Board cards e.g. `["7d", "Tc", "2s"]` |
-| `street` | `str` | `preflop` / `flop` / `turn` / `river` |
-| `pot` | `int` | Total chips in the pot |
-| `your_stack` | `int` | Your remaining chips |
-| `amount_owed` | `int` | Chips needed to call (0 = free check) |
-| `can_check` | `bool` | True when no bet to call |
-| `current_bet` | `int` | Highest bet this street |
-| `min_raise_to` | `int` | Minimum legal raise total |
-| `players` | `list` | Public info on all seats |
-| `action_log` | `list` | Every action taken this hand |
-
-**Valid return values:**
-
-```python
-{"action": "fold"}
-{"action": "check"}                       # only when can_check is True
-{"action": "call"}
-{"action": "raise", "amount": 1200}       # amount = total bet, not raise-by
-{"action": "all_in"}
-```
-
-Invalid or missing actions default to fold. Raises below the minimum are snapped up automatically.
-
-**Rules:**
-- 2 seconds to return an action or your bot auto-folds
-- No network calls during gameplay
-- No file writes ever; reads from `data/` allowed at module-import time only
-- **768 MB RAM**, 0.5 CPU core per bot
-- Crashes and exceptions auto-fold for that hand — your bot stays in the tournament
-
-**Available libraries:** `eval7` `numpy` `scipy` `treys` `scikit-learn` — request others before the event
-
-### Not allowed (will get your bot disqualified)
-
-The sandbox blocks most of these at the OS level — but listing them explicitly so there's no ambiguity:
-
-- **No external API calls of any kind.** No `requests` to Claude, OpenAI, Anthropic, Google, or any other LLM/AI service. No webhook callbacks, no DNS lookups, no `socket`. The container has `--network none` so these fail anyway, but doing them on purpose is grounds for disqualification.
-- **No reading another bot's code or hole cards.** You only see what's in `state["your_cards"]`. Don't try to access opponents' files, scrape `/proc`, or use reflection to peek at the runner's memory. The hole-card data isn't in your container's process memory — but trying counts as cheating.
-- **No file writes during gameplay.** The filesystem is read-only at runtime. `data/` is read-only too. Trying to `os.system`, `subprocess`, or `open(..., "w")` will be blocked or get you DQ'd.
-- **No threading or async tricks to dodge the 2 s/action timeout.** The signal-based timer cancels your `decide()` mid-call; spawning background threads to keep computing past the deadline counts as fraud, not strategy.
-- **No collusion.** If you and a friend both register, your bots must play independently. Coordinated soft-play, chip-dumping, or sharing live game state between submissions is grounds for both bots being DQ'd and forfeit of any prize.
-- **No crypto-mining or resource abuse.** The 768 MB / 0.5 CPU limits will OOM-kill abusive bots, but doing it on purpose (e.g., to slow opponents) is bannable.
-- **No reflection escape attempts.** `__import__('socket')`, `getattr(__builtins__, 'open')`, `eval()`, `exec()`, `compile()` are all flagged by the validator and rejected. Don't try clever obfuscation either — `__import__('so'+'cket')` etc. fails the AST check at submission time.
-- **No external compute.** You may not use the bot.py to call out to a server you control (it can't anyway, see point 1) or queue work to be done elsewhere. The bot must make its own decisions inside its own container.
-
-**TL;DR:** treat your container as if it's the entire universe. If it's not in `requirements.txt` or the Python stdlib, and you can't load it from your own `data/` at import time, it doesn't exist.
-
-### Submission formats
-
-Pick whichever fits your bot:
-
-| Format | Use when |
-|---|---|
-| `bot.py` (single file) | Simple bot, no large lookup tables |
-| `bot.zip` containing `bot.py` + optional `data/` | You ship a CFR blueprint, neural-net weights, equity table, etc. |
-
-`data/` constraints:
-- ≤ 200 MB total
-- No `.py` files inside (use `bot.py` for code)
-- Read-only at runtime, accessed via `os.environ["BOT_DATA_DIR"]`
-- Loaded **at module-import time only** — gameplay actions still must respond in 2 s
-
-```python
-# bot.py
-import os, numpy as np
-DATA_DIR = os.environ.get("BOT_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
-BLUEPRINT = np.load(os.path.join(DATA_DIR, "blueprint.npz"))   # loaded once at import
-
-def decide(state):
-    # use BLUEPRINT to make decisions — no file I/O here
-    ...
+engine/game.py        NLHE rules for one hand (eval7 hand evaluation, side pots, events)
+engine/tournament.py  Swiss pairing and standings
+sandbox/match.py      multi-hand match runner; bots run as subprocesses or in Docker
+sandbox/runner.py     the bot side: loads bot.py, JSON over stdin/stdout, timeouts
+sandbox/validator.py  checks bot code before accepting it
+sandbox/Dockerfile    isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
+bots/                 reference bots: template, aggressor, mathematician, shark, ref_bot_2
+db/schema.sql         upstream's hosted-site schema (not used here)
+demo.py               Flask demo UI
 ```
 
 ---
 
-## Submitting your bot
+## Credits
 
-Once your bot validates cleanly locally (`make validate BOT=bots/mybot/bot.py`), upload it at **[portal.fullhousehackathon.com](https://portal.fullhousehackathon.com)**.
-
-**Deadline:** **31 May 2026, 23:59 UTC.** Late submissions don't enter the qualifier.
-
-The portal runs `sandbox/validator.py` against your upload and rejects anything that fails — so a green local validation is the bar to clear. Submit either a single `bot.py` or a `.zip` archive with `bot.py` at the root plus an optional `data/` directory (see [Submission formats](#submission-formats) above for limits).
-
-If validation passes, your bot is queued for the **1 June qualifier**. You can re-upload up to the deadline; only your most recent successful submission counts.
-
-**Patch window:** between Day 1 (qualifier) and Day 5 (finals), you can replace your bot with an updated version once. Same submission flow; your bot ID stays the same across all rounds.
-
----
-
-## Running matches
-
-```bash
-# single match, 400 hands (qualifier length)
-python3 sandbox/match.py bots/mybot/bot.py bots/shark/bot.py --hands 400
-
-# full tournament simulation (3 Swiss rounds)
-# use the demo UI at http://localhost:5001
-```
-
----
-
-## Tournament format
-
-**1 Jun — Online qualifier**
-All bots play in a Swiss-system tournament (multiple rounds, 400 hands per match, 6-bot tables). Bots are paired by similar standing after each round. Ranking is by cumulative chip delta. **Top 64 advance** to the finals.
-
-**2 Jun — Patch window**
-Hand histories from your D1 matches are downloadable as JSON. You can submit one updated bot before D5.
-
-**5 Jun — Finals night, UCL East**
-Top 64 play a single-elimination bracket live on stage. Winner takes the prize pool.
-
-> **Why 400 hands?** Lower variance per match. With only 200 hands, "overbet a lot" can be +EV in tournament terms (you can lose −10k max but gain up to +50k, and only top 64 advance). 400 hands tilts the field back toward skill.
-
----
-
-## Reference bots
-
-Five bots are included to test against:
-
-| Bot | Strategy |
-|-----|----------|
-| `bots/template/bot.py` | Pocket pairs + basic pot odds |
-| `bots/aggressor/bot.py` | Raises constantly regardless of hand |
-| `bots/mathematician/bot.py` | Calls only when getting 3:1 pot odds |
-| `bots/shark/bot.py` | Tight preflop, position-aware, value bets |
-| `bots/ref_bot_2/bot.py` | Pot-odds caller — heuristic reference baseline |
-
----
-
-## Repo structure
-
-```
-engine/         Game engine — NLHE rules, hand evaluation, chip tracking
-sandbox/        Validator + local match runner
-bots/           Reference bots and starter template
-tests/          Engine unit tests
-demo.py         Quick local demo
-```
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| Game engine | Python 3.10 (eval7 needs `longintrepr.h`, removed in 3.11+) |
-| Hand evaluation | eval7 (same as MIT Pokerbots) |
-| Bot isolation | 2s time limit, no network, no file I/O |
-
----
-
-## Event details
-
-**Fullhouse Hackathon** — 1 June 2026, London
-Prize pool: £4,000+· Lead sponsor: Quadrature Capital
-
-[fullhousehackathon.com](https://fullhousehackathon.com)
-
----
-
-## Questions
-
-Open an issue or reach out via [fullhousehackathon.com](https://fullhousehackathon.com).
+Built on [fullhouse-engine](https://github.com/uzlez/fullhouse-engine)
+(MIT, © 2026 Fullhouse Hackathon). Hand evaluation by
+[eval7](https://github.com/julianandrews/pyeval7).
