@@ -141,7 +141,6 @@ Still planned:
 
 ```bash
 arena runout <spot> --seats mybot,shark --runs 500   # play to the end many times; EV per bot
-arena test mybot --suite river-spots            # saved spots with expected actions
 ```
 
 ---
@@ -153,8 +152,9 @@ arena test mybot --suite river-spots            # saved spots with expected acti
    `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
    the async match runner, the run store and replay.
 2. **Logs and evaluation:** the cross-match index and queries
-   (`arena stats/hands/decisions/sql`, 2a) and `arena probe/sweep` (2b)
-   are **done**. Still to do: test suites with expected answers (2c),
+   (`arena stats/hands/decisions/sql`, 2a), `arena probe/sweep` (2b) and
+   test suites with expected answers (`arena test`, 2c) are **done**.
+   Still to do:
    duplicate-deal comparisons with confidence intervals (2d), and short
    briefs for agents (2e).
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
@@ -377,6 +377,47 @@ are listed as invalid. Probes and sweeps are stored in `runs/probes/`;
 `arena probes` lists them and `arena probes ID --verbose` shows every
 answer with its notes.
 
+### Test a bot
+
+Spots can carry an expected answer. `arena test` runs a bot against every
+spot that has one, prints PASS/FAIL, and exits 1 if anything fails, so it
+works as a check after every change to a bot.
+
+```bash
+arena test bots/mybot --suite basics        # spots/suites/basics/
+arena test bots/mybot --tag river -n 20     # every library spot tagged river
+arena test bots/mybot my-spot other-spot    # named spots
+```
+```
+test t-20261002-143603-b5eb · bots/shark/bot.py · 5 spot(s)
+  PASS  suites/basics/call-tiny-bet-huge-odds  call 100%
+  PASS  suites/basics/check-when-free          check 100%
+  FAIL  suites/basics/dont-fold-the-nuts       fold in 5/5; expected not fold
+  PASS  suites/basics/fold-trash-to-shove      fold 100%
+  PASS  suites/basics/raise-aces-short         raise 100%
+4 passed, 1 failed
+```
+
+The expectation lives in the spot file:
+
+```yaml
+expect:
+  action: [call, raise]     # every sample must be one of these
+  not: [fold]               # no sample may be one of these
+  raise_to_bb: ">=2.5"      # bet/raise size (also raise_to in chips, raise_to_pot)
+  freq: {fold: "<0.2"}      # share of all samples
+  n: 20                     # samples (default 5)
+  errors_ok: false          # by default a timeout/crash/exception fails
+```
+
+Actions are `fold`, `check`, `call`, `raise` (any bet or raise) and
+`all_in`. Add one from the command line with
+`arena spot ... --expect "{not: [fold]}" --tags river --save suites/NAME/SPOT`.
+`spots/suites/basics/` is a starter suite of sanity checks (check when
+it's free, don't fold the nuts, call a tiny bet getting huge odds, raise
+aces when short, fold trash to a shove). Every reference bot fails at
+least one of them.
+
 To run every bot in its own locked-down container instead of a local
 process:
 
@@ -460,9 +501,10 @@ arena/runs.py         run store (runs/<id>/): writer, reader, event schema
 arena/replay.py       rebuild/verify hands from events; any point in a hand -> spot
 arena/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
 arena/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
+arena/expect.py       expected answers for spots (used by arena test)
 arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
-spots/                the spot library
+spots/                the spot library; spots/suites/ holds test suites
 sandbox/match.py      upstream-compatible wrapper around arena/match.py (used by demo.py)
 sandbox/validator.py  checks bot code before accepting it
 sandbox/Dockerfile    isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
