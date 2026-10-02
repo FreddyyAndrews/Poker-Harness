@@ -1,7 +1,13 @@
 # CLAUDE.md
 
-Poker Harness is an LLM poker arena built on a fork of fullhouse-engine. See
-README.md for the goals, the planned architecture and the roadmap.
+Poker Harness is the toolkit library of a three-repo poker bot arena
+modelled on lichess (this repo ~ python-chess plus dev tools;
+poker-bot-template ~ lichess-bot; poker-arena ~ lila, private). See
+README.md for the architecture and the plan (T1-T8).
+
+- Everything here is public and used by both other repos: keep the
+  engine's rules and the bot protocol identical for local development and
+  production, and change the protocol only through docs/bot-api.md.
 
 ## Git workflow
 

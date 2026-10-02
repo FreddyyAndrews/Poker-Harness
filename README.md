@@ -1,37 +1,68 @@
 # Poker Harness
 
-> An LLM poker arena: coding agents write poker bots, play them against each
-> other (and against humans), read structured logs of what happened, and
-> improve their bots over time.
+> The toolkit behind an LLM poker bot arena: the No-Limit Hold'em rules
+> engine, the bot protocol, and a local development arena where coding
+> agents build, test and improve poker bots with full god view.
 
 This is a fork of [fullhouse-engine](https://github.com/uzlez/fullhouse-engine),
-the engine from the 2026 Fullhouse Hackathon. We keep its No-Limit Hold'em
-engine and bot protocol, and build an arena around them.
+the engine from the 2026 Fullhouse Hackathon, grown into the shared
+library of a three-repo system modelled on lichess and lichess-bot.
 
-**Status:** phases 1 (core) and 2 (logs and evaluation) are done:
-matches, spots, replay, cross-match queries, probes, test suites,
-duplicate comparisons and agent briefs all work from the `arena` CLI (see
-[What works today](#what-works-today)). The server, frontend, human seats
-and LLM bots are still planned.
+**Status:** the local toolkit works today: matches, spots, replay,
+cross-match queries, probes, test suites, duplicate comparisons and agent
+briefs, all from the `arena` CLI (see
+[What works today](#what-works-today)). Next: the bot API spec, the
+bridge client and a mock server (see [Plan](#plan)).
 
 ---
 
+## The three repos
+
+| Repo | Role | lichess analogue | Visibility |
+|---|---|---|---|
+| **Poker-Harness** (this repo) | Toolkit library: rules engine, bot protocol, local dev arena (matches, god view, probes, tests, comparisons, briefs), the bot bridge client and a mock server | python-chess (+ dev tools) | public |
+| [poker-bot-template](https://github.com/FreddyyAndrews/poker-bot-template) | What a user forks and drops an agent into: a bot, dummy opponents, spot suites, bridge config, agent instructions | lichess-bot | public |
+| poker-arena | Production backend (FastAPI + Postgres) and frontend (React): accounts, tokens, the bot API, matchmaking, ratings, watching and playing | lila | private |
+
+Both other repos install this one, so the rules are identical in local
+development and in production.
+
+## How it fits together
+
+```
+ Claude cloud session / any machine                    poker-arena (production)
+┌──────────────────────────────────────────┐          ┌───────────────────────────────┐
+│ poker-bot-template fork                  │          │ accounts, bots, tokens        │
+│   bot/bot.py, opponents/, spots/         │          │ bot API (event + match        │
+│ Poker-Harness toolkit (this repo)        │  stream  │   streams, decisions)         │
+│   local matches with god view, probes,   │ ◄──────► │ deals from secret seeds       │
+│   tests, compare, brief                  │  + POST  │ visibility filter per viewer  │
+│   arena connect: the bridge that runs    │          │ matchmaking, ratings          │
+│   bot.py for production decisions        │          │ website: watch, replay, play  │
+└──────────────────────────────────────────┘          └───────────────────────────────┘
+```
+
+- **Development is local and fully visible.** An agent plays its bot
+  against dummy bots and sees everything: every player's cards, every
+  decision, its bot's notes. Nothing there needs protecting.
+- **Production is remote and protected.** Bots run wherever their owners
+  like and connect with a token, like lichess bots. The arena never runs
+  user code; it deals, sends each bot only its own view, enforces time
+  controls and records everything. Owners see their own cards plus
+  showdowns, never opponents' hidden cards or notes.
+- **Bots can use anything:** any model, tool or hardware. The arena
+  compares a wide range of implementations rather than controlling them.
+
 ## The research question
 
-How should an LLM manage its context to play well over long poker sessions?
+How should an LLM manage its context to play well over long poker
+sessions, and to improve a bot over many development sessions?
 
-A bot in this arena can call LLMs while it decides what to do. Across hundreds
-of hands and many matches, it has to decide what to remember, what to
-summarise, what to forget, and what to carry into the next match. The arena
-makes that measurable:
-
-- **Bots** play heads-up or at full tables (2–9 seats).
-- **Coding agents** write and revise bots, using a CLI to build test
-  situations, probe their bots' decisions and query match logs.
-- **Humans** watch matches live, step through replays, and sit in to play the
-  bots directly.
-- **Everything is logged**: every action, every bot's internal notes, and every
-  LLM prompt and response.
+- A bot that calls LLMs while deciding has to choose what to remember,
+  summarise and forget across hundreds of hands and many matches.
+- A coding agent improving a bot has to work from compact evidence. The
+  toolkit is built for that: short default output, references to drill
+  into, and `arena brief` as the starting summary.
 
 ---
 
@@ -39,140 +70,105 @@ makes that measurable:
 
 | Term | Meaning |
 |------|---------|
-| **Bot** | A `bot.py` with a `decide(state, ctx)` function. It doesn't act on its own; it only answers when asked for a decision. |
-| **Controller** | Whoever manages bots: a coding agent, a scheduler, or a human. Controllers create tables, queue bots and read results. |
-| **Seat** | A place at a table. It can hold a hosted bot, a human, or (later) a remote client. |
-| **Table / match** | A game with a mode (heads-up or N-max), a number of hands, blinds, time per decision and an LLM budget. |
-| **Spot** | A poker situation set up on purpose: chosen hole cards, board, stacks and action so far. Used for testing bots. |
-| **Probe** | Asking a bot "what would you do here?" without moving a game forward or changing the bot's memory. |
-| **God view** | Seeing every player's hole cards and the full deck. |
+| **Bot** | A `bot.py` with `decide(state, ctx)`. It only answers when asked for a decision. The same file runs locally and in production. |
+| **Seat** | A place at a table, filled by a bot process, a script, a human, or (via the bridge) a remote bot. |
+| **Match** | A game between 2-9 seats: hands, blinds, stacks, time per decision. |
+| **Spot** | A poker situation set up on purpose: chosen cards, stacks and action so far. Can carry an expected answer for tests. |
+| **Probe** | Asking a bot "what would you do here?" without playing a game. |
+| **God view** | Seeing every player's hole cards and the whole deck. Local development only. |
+| **Bridge** | `arena connect` (planned): connects a bot to the arena, like lichess-bot. |
 
 ---
 
-## Planned architecture
+## Plan
 
-```
-           Frontend (lobby / watch / replay / play)
-                    │  WebSocket + REST
-          ┌─────────▼──────────┐        arena CLI / MCP
-          │   Arena server     │◄────── (coding agents)
-          │ lobby, matchmaking │
-          └─────────┬──────────┘
-                    │
-          MatchRunner (async) ──► EventStore (JSONL per match + SQLite index)
-           │        │         │
-       BotSeat   LLMBotSeat  HumanSeat     ← one Seat.act(state) interface
-           │        │
-     runner.py ◄──► LLM broker (host side: API keys, model allowlist,
-                                budgets, logging of every call)
-```
+The cross-repo milestones are:
+1. **Protocol and local loop:** T1-T5 here, and the template connecting to
+   the mock server.
+2. **Arena alpha:** poker-arena's backend running locally; template bots
+   play heads-up challenges.
+3. **Public beta:** deployed arena, website, ladder.
+4. **Play and polish:** human play, ratings, events, MCP.
 
-### Engine
-- Based on `engine/game.py`. The poker rules stay as they are.
-- Seats stay fixed for the whole match (today they're renumbered when a player
-  busts), and each bot's state includes `dealer_seat`.
-- A full-information `hand_start` event (every player's hole cards, the deck
-  order) goes to the log only. Bots never see it.
-- Rigged deals and starting mid-hand, so any situation can be built and
-  replayed exactly.
+Work in this repo:
 
-### Bots and LLM access
-- Bots receive a `ctx` object: `decide(state, ctx)`.
-  - `ctx.llm(messages, model=...)`: an LLM call made **by the host**, not the
-    bot. The bot process has no network access and never holds API keys.
-  - `ctx.log(...)`: structured notes saved with each decision.
-  - `ctx.memory`: a per-bot store that persists across matches.
-- The host enforces which models are allowed and token/cost limits per
-  decision, match and bot, and logs every call.
-- Time limits are set per seat: fast for rule-based bots, longer for LLM bots,
-  none for humans.
+**T1. Become an installable library**
+- Rename the import package from `arena` to `poker_harness` (the `arena`
+  command stays), so it doesn't clash with poker-arena.
+- One-command install from git, pinned by tag, for both other repos.
+- Resolve the hand-evaluator install: eval7 needs Python 3.10 and a
+  special build, which is friction in a fresh cloud session. Either prove
+  a setup script makes it reliable, or move to an evaluator with prebuilt
+  wheels and newer Python support.
 
-### Logs and storage
-Each match is written to `runs/<match_id>/` as it plays (this part exists;
-see [Run a match](#run-a-match)):
-```
-runs/<match_id>/
-  meta.json                   config, seats, seed, bot versions, status, result
-  events.jsonl                full timeline with god view; replay uses this
-  bots/<bot>/decisions.jsonl  state seen, reply, applied action, ctx.log notes, timing
-  bots/<bot>/stderr.log
-```
-`runs/index.sqlite` indexes every finished run for queries across
-matches (see [Query across matches](#query-across-matches)). Still
-planned: LLM calls in the decision records (phase 5).
+**T2. Bot API spec** (`docs/bot-api.md` plus protocol models)
+- The lichess-style API that poker-arena implements and the bridge
+  consumes: the bot event stream (challenges, match start/finish), the
+  match stream (hand start with your cards only, public actions, `decide`
+  requests, hand results with showdowns), decision POSTs, challenges and
+  seeks, time controls (per-decision limit plus a time bank), errors and
+  versioning.
+- The `decide` state is exactly the state bots get locally, so a bot runs
+  unchanged in both places.
+- Shared Python models for every message, used by the bridge, the mock
+  server and poker-arena.
 
-### Arena server and lobby
-- Tables go through `open → filling → running → finished`.
-- Controllers can create tables, seat bots, or queue a bot for a game mode
-  and let the matchmaker fill tables (with per-mode ratings).
-- A scheduler runs ladders, round-robins and long unattended simulations.
-- Bot-only matches run as fast as possible. Viewers watch at a speed they
-  choose (1×, 4×, step by step). Tables with a human run at human speed.
+**T3. Bridge client (`arena connect`)**
+- lichess-bot's job for poker: read `config.yml` (server, token, bot
+  entry point, concurrency, which challenges to accept, optional
+  matchmaking), open the event stream, accept challenges or join seeks,
+  play each match by running `bot.py` through the existing bot-process
+  seat (isolation, timeouts, restarts), and post decisions with their
+  `ctx.log` notes.
+- Reconnects with backoff, honours rate limits, and keeps a local record
+  of every production match from the bot's own perspective, so the local
+  tools (`stats`, `brief`, `hands`) work on production games too.
 
-### Who can see what
-| Viewer | Hole cards visible |
-|--------|--------------------|
-| Seated bot | Its own cards only, always |
-| Human player | Own cards, or god view if they turn it on |
-| Spectator | Public view (showdown only) or god view |
-| Anyone, after the match | Everything, including bot reasoning and LLM calls |
+**T4. Mock server (`arena serve-mock`)**
+- A small local implementation of the bot API, backed by the engine and
+  house bots. It lets the bridge and the template be tested end to end
+  without production, and gives poker-arena a reference to check its
+  implementation against.
 
-Bots and the agents controlling them can **never** see hidden information in a
-live match they're playing in. Any match with a god-view seat, a rigged deal or
-an edited state is marked `unranked`. It's still logged, but it stays out of
-ratings and out of the default data agents learn from.
+**T5. Own-perspective tooling**
+- Production records have no hidden cards, so the index, `stats` and
+  `brief` must work without them: equity only where cards were shown, and
+  no hindsight leaks.
+- Turn a production hand into a spot where opponents' unknown cards are
+  random.
 
-### Frontend
-- **Lobby:** create and join tables, pick bots and seats, see running matches.
-- **Live table:** watch with either public or god view.
-- **Replay:** scrub through any match one action at a time.
-- **Play:** take a seat against the bots, with god view optional.
-- **Bot inspector:** each decision's notes and LLM reasoning.
-- **Edit and fork:** stop a replay at any decision, change something, then
-  continue as a new match or a probe.
+**T6. Production client commands and MCP**
+- Owner queries against the arena API (own matches, hands, decisions,
+  stats) through the same commands (`--server` or a profile in config).
+- An MCP server exposing the local toolkit and the remote queries to
+  agents.
 
-### `arena` CLI (built for coding agents)
-- Commands never wait for interactive input.
-- Default output is terse, with `--json` and `--verbose` when needed.
-- Every result has an ID, so agents only fetch full details when they need
-  them.
+**T7. Integrity helpers for the arena**
+- Hand-seed derivation keyed with a secret (HMAC-SHA256) so production
+  deals can't be predicted; the engine takes the derived seed.
+- A visibility filter that turns a full event log into what a given
+  viewer may see (seat owner, spectator, admin), used by poker-arena and
+  tested here.
 
-`spot`, `spots`, `hand`, `equity`, `match`, the queries, `probe`/`sweep`,
-`test`, `compare` and `brief` exist today (see [What works today](#what-works-today)).
-Still planned:
-
-```bash
-arena runout <spot> --seats mybot,shark --runs 500   # play to the end many times; EV per bot
-```
-
----
-
-## Roadmap
-
-1. **Core** (**done**): engine changes (fixed seats, configurable blinds,
-   `legal_actions()`, strict mode, rigged deals, uncalled bets), spots and
-   `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
-   the async match runner, the run store and replay.
-2. **Logs and evaluation** (**done**): the cross-match index and queries
-   (`arena stats/hands/decisions/sql`), `arena probe/sweep`, test suites
-   with expected answers (`arena test`), duplicate comparisons
-   (`arena compare`) and briefs for agents (`arena brief`).
-3. **Server and frontend:** lobby, live view, replay, bot inspector.
-4. **Human seats:** play mode with optional god view, edit and fork from
-   replay.
-5. **LLM bots:** the host-side broker, `ctx.llm` / `ctx.memory`, budgets.
-6. **Agent loop:** matchmaking, ratings, scheduler, MCP server, and workflows
-   where agents write, test and improve bots.
+**T8. Housekeeping**
+- Reference bots: fix `shark`'s rank-sorting bug (it folds AK and AQ)
+  and add a few stronger house bots for the template's opponents.
+- Retire upstream leftovers that the new design replaces (`demo.py`,
+  `sandbox/match.py` wrapper, `db/schema.sql`, `engine/tournament.py`
+  usage).
 
 ### Open decisions
-- Which LLM providers to support (Anthropic only, or several via LiteLLM),
-  and whether bots pick models or the harness assigns them.
-- Whether to keep Docker isolation, or rely on subprocess isolation plus the
-  broker for local-only use.
-- Frontend stack (React/Vite + FastAPI is the working assumption).
-- Single user (one machine) or multiple users with accounts.
-- Whether to support remote bot seats (outside processes playing over
-  WebSocket).
+
+- Rating system (decided in poker-arena).
+- Hand evaluator (T1).
+
+### Dropped from the earlier plan
+
+- A host-side LLM broker: production bots run on their owners' machines
+  and call whatever they like. `ctx.log` still records their reasoning.
+- Running user bots on the server in Docker: the arena never runs user
+  code. Docker mode stays available for local isolation.
+- The server and frontend in this repo: they live in poker-arena.
 
 ---
 
@@ -533,13 +529,13 @@ When a decision fails, the bot checks if it can and folds otherwise:
 After 5 restarts in a match the bot stops being restarted and always
 checks/folds.
 
-`sandbox/validator.py` rejects network, subprocess, threading and pickle
-imports, and `eval`/`exec`.
+`sandbox/validator.py` (from upstream) enforces the hackathon's rules: no
+network, subprocess, threading or pickle imports, no `eval`/`exec`. Those
+rules don't apply here, since bots may call LLMs and other tools; the
+validator will be retired or reduced to a sanity check (T8).
 
 The protocol between host and bot is newline-delimited JSON; see
 [arena/runner/bot_runner.py](arena/runner/bot_runner.py).
-
-The LLM broker will relax these rules for approved LLM calls.
 
 ### Demo UI (from upstream)
 
@@ -548,7 +544,7 @@ python3 demo.py   # http://localhost:5001  (DEMO_PORT to change)
 ```
 
 Six reference bots play single matches or a 3-round Swiss tournament, with a
-live log and hand replay. The planned frontend will replace this.
+live log and hand replay. poker-arena's website replaces it (T8).
 
 ### Repo layout
 
