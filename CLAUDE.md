@@ -14,8 +14,8 @@ README.md for the goals, the planned architecture and the roadmap.
   what changed; the body says why and lists notable behaviour changes.
 - No Claude Code attribution in commits or PRs: no `Co-Authored-By: Claude`
   trailer and no "Generated with Claude Code" line.
-- Work on a branch per roadmap step (e.g. `phase-1b-spots`), and push it to
-  `origin`.
+- For now, commit directly on `main` and push to `origin main`. No feature
+  branches until we decide on a branching workflow.
 - Run `make test` before committing; don't commit with failing tests.
 
 ## Environment
