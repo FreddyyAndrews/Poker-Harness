@@ -25,7 +25,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from arena.engine.game import PokerEngine, STARTING_STACK
+from arena.engine.game import PokerEngine, STARTING_STACK, next_button
 
 RUNNER_PATH    = Path(__file__).parent / "runner.py"
 SANDBOX_IMAGE  = os.environ.get("SANDBOX_IMAGE", "fullhouse-sandbox:latest")
@@ -231,7 +231,7 @@ def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None):
     stacks  = {bid: STARTING_STACK for bid in bot_ids}
     hand_log = []
     match_action_log = []
-    dealer = 0
+    dealer = None
     start_ts = time.time()
 
     # Warm-up: give every bot one untimed-by-2s call so they can finish
@@ -241,27 +241,28 @@ def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None):
 
     try:
         for hand_num in range(n_hands):
-            alive = [bid for bid in bot_ids if stacks[bid] > 0]
-            if len(alive) < 2:
+            # Seats are fixed for the match; busted bots sit out.
+            if sum(1 for bid in bot_ids if stacks[bid] > 0) < 2:
                 break
 
+            dealer = next_button([stacks[bid] for bid in bot_ids], dealer)
             hand_id = match_id + "_h" + str(hand_num).zfill(4)
             hand_seed = (seed * 1000003 + hand_num) if seed is not None else None
             engine = PokerEngine(
                 hand_id        = hand_id,
-                bot_ids        = alive,
-                dealer_seat    = dealer % len(alive),
-                starting_stacks= {bid: stacks[bid] for bid in alive},
+                bot_ids        = bot_ids,
+                dealer_seat    = dealer,
+                starting_stacks= dict(stacks),
                 seed           = hand_seed,
+                hand_num       = hand_num,
             )
 
-            result = _play_hand(engine, procs, alive, match_action_log, hand_num, verbose)
+            result = _play_hand(engine, procs, bot_ids, match_action_log, hand_num, verbose)
             hand_log.append({"hand_num": hand_num, "hand_id": hand_id, **result})
 
             for bid, s in result["final_stacks"].items():
                 stacks[bid] = s
 
-            dealer += 1
 
             if verbose and hand_num % 25 == 0:
                 _print_stacks(hand_num, n_hands, stacks)

@@ -153,8 +153,10 @@ run in a separate bot process and can't write to the bot's memory.
 
 ## Roadmap
 
-1. **Core:** the `Seat` interface, fixed seats, async match runner, event
-   store, rigged deals, starting mid-hand, `arena spot/hand/equity`. Also
+1. **Core:** engine changes (fixed seats, configurable blinds,
+   `legal_actions()`, strict mode, rigged deals) are **done**. Still to do:
+   the `Seat` interface, async match runner, event store, starting
+   mid-hand, `arena spot/hand/equity`. Also
    fix two bot I/O bugs: stderr is never read (a bot that logs a lot stalls),
    and a bot's `print()` breaks the action protocol.
 2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
@@ -183,11 +185,12 @@ Everything below is inherited from upstream and still works.
 
 ### Install
 
-Use Python 3.10. eval7 doesn't build on 3.11+.
+Use Python 3.10. eval7 doesn't build on 3.11+ (on macOS: `brew install python@3.10`).
 
 ```bash
-make install     # installs Cython<3, then eval7 with --no-build-isolation, then the rest
-make test        # engine unit tests
+make install     # creates .venv, installs Cython<3, eval7 (--no-build-isolation), then this package
+source .venv/bin/activate
+make test        # engine tests, including fuzzers
 ```
 
 ### Run a match
@@ -240,8 +243,9 @@ The LLM broker will relax these rules for approved LLM calls.
 ### Repo layout
 
 ```
-engine/game.py        NLHE rules for one hand (eval7 hand evaluation, side pots, events)
-engine/tournament.py  Swiss pairing and standings
+arena/engine/game.py  NLHE rules for one hand: fixed seats, legal_actions(), strict mode,
+                      rigged deals, side pots, events
+arena/tournament.py   Swiss pairing and standings
 sandbox/match.py      multi-hand match runner; bots run as subprocesses or in Docker
 sandbox/runner.py     the bot side: loads bot.py, JSON over stdin/stdout, timeouts
 sandbox/validator.py  checks bot code before accepting it

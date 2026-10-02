@@ -1,18 +1,19 @@
 """
-Fullhouse Hackathon — No-Limit Texas Hold'em Game Engine v2.0
-6-max (up to 9), using eval7 (same library as MIT Pokerbots).
+No-Limit Texas Hold'em engine for one hand, 2-9 seats, using eval7.
 
-Fixes in v2.0:
-  - Correct side-pot computation (multiple all-in levels)
-  - Heads-up rules: dealer = SB, SB acts first preflop, BB first postflop
-  - BB option: BB is included in needs_to_act preflop
-  - Short all-in: does NOT reopen action for players who already acted
-  - Accurate blind posting: logs real contributed amounts
-  - Deterministic/seeded deck for reproducible matches
-  - Explicit player states: active / folded / all_in / busted
-  - Chip invariant check after every hand resolution
-  - Rich event log for full replay (street_start, blind, action, showdown)
-  - Hand strength labels at showdown
+Forked from the Fullhouse Hackathon engine v2.0. On top of upstream:
+  - Fixed seats: a seat with no chips sits out (no cards, no blinds, never
+    acts) instead of being removed, so seat numbers are stable for a match
+  - Blinds are passed in per hand instead of being module constants
+  - legal_actions() for the seat to act, also included in every state
+  - Strict mode: illegal actions raise IllegalActionError instead of being
+    corrected (for replaying spots and recorded hands)
+  - Rigged deals: fix any hole cards and board cards; the rest of the deck
+    is shuffled from the seed
+  - Acting out of turn or after the hand is over raises an error
+  - When no further betting is possible (everyone left is all-in, or one
+    player who owes nothing), the board runs out without asking anyone
+  - Every street dealt during a run-out gets a street_start event
 """
 
 import eval7
@@ -21,13 +22,20 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Config
+# Defaults
 # ---------------------------------------------------------------------------
 
 SMALL_BLIND    = 50
 BIG_BLIND      = 100
 STARTING_STACK = 10_000
 MAX_PLAYERS    = 9
+
+ACTIONS = ("fold", "check", "call", "raise", "all_in")
+STREETS = ("preflop", "flop", "turn", "river")
+
+
+class IllegalActionError(ValueError):
+    """An action that is not legal right now (strict mode), or out of turn."""
 
 
 # ---------------------------------------------------------------------------
@@ -42,22 +50,28 @@ class Player:
     hole_cards: list = field(default_factory=list)
     is_folded: bool = False
     is_all_in: bool = False
+    sitting_out: bool = False   # had no chips when the hand started
     bet_this_street: int = 0
     total_invested: int = 0     # cumulative chips put in this hand (for side pots)
 
     @property
+    def in_hand(self) -> bool:
+        """Still contesting the pot (may be all-in)."""
+        return not self.is_folded and not self.sitting_out
+
+    @property
     def is_active(self) -> bool:
         """Can still make betting decisions."""
-        return not self.is_folded and not self.is_all_in and self.stack > 0
+        return self.in_hand and not self.is_all_in and self.stack > 0
 
     @property
     def state(self) -> str:
+        if self.sitting_out:
+            return "busted"
         if self.is_folded:
             return "folded"
         if self.is_all_in:
             return "all_in"
-        if self.stack == 0:
-            return "busted"
         return "active"
 
     def to_public_dict(self) -> dict:
@@ -83,6 +97,25 @@ class Action:
         return {"seat": self.seat, "action": self.action, "amount": self.amount}
 
 
+def next_button(stacks: list, prev: Optional[int] = None) -> int:
+    """Button for the next hand: the first seat with chips after `prev`
+    (or seat 0 onwards for the first hand)."""
+    n = len(stacks)
+    start = 0 if prev is None else prev + 1
+    for offset in range(n):
+        s = (start + offset) % n
+        if stacks[s] > 0:
+            return s
+    raise ValueError("No seat has chips")
+
+
+def _parse_card(text) -> eval7.Card:
+    try:
+        return eval7.Card(str(text))
+    except Exception:
+        raise ValueError(f"Bad card: {text!r}") from None
+
+
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
@@ -95,19 +128,45 @@ class PokerEngine:
         dealer_seat: int = 0,
         starting_stacks: Optional[dict] = None,
         seed: Optional[int] = None,
+        small_blind: int = SMALL_BLIND,
+        big_blind: int = BIG_BLIND,
+        hand_num: int = 0,
+        hole_cards: Optional[dict] = None,
+        board: Optional[list] = None,
     ):
+        """
+        hole_cards: optional {seat: ["As", "Kh"]} to rig some seats' cards.
+        board:      optional list of up to 5 board cards; None entries (or a
+                    short list) leave those cards random.
+        Unrigged cards are drawn from the rest of the deck, shuffled by `seed`.
+        """
         assert 2 <= len(bot_ids) <= MAX_PLAYERS, \
-            f"Need 2-{MAX_PLAYERS} bots, got {len(bot_ids)}"
+            f"Need 2-{MAX_PLAYERS} seats, got {len(bot_ids)}"
+        assert len(set(bot_ids)) == len(bot_ids), f"Duplicate bot_ids: {bot_ids}"
+        assert 0 < small_blind <= big_blind, "Need 0 < small_blind <= big_blind"
 
         stacks = starting_stacks or {}
         self.players = [
             Player(seat=i, bot_id=bid, stack=stacks.get(bid, STARTING_STACK))
             for i, bid in enumerate(bot_ids)
         ]
+        for p in self.players:
+            p.sitting_out = p.stack <= 0
+
         self.n           = len(self.players)
+        self._live       = [p.seat for p in self.players if not p.sitting_out]
+        if len(self._live) < 2:
+            raise ValueError("Need at least 2 seats with chips")
+
         self.dealer_seat = dealer_seat % self.n
+        if self.players[self.dealer_seat].sitting_out:
+            raise ValueError(f"Dealer seat {self.dealer_seat} has no chips")
+
         self.hand_id     = hand_id
+        self.hand_num    = hand_num
         self.seed        = seed
+        self.small_blind = small_blind
+        self.big_blind   = big_blind
 
         self.pot             = 0
         self.community_cards = []          # list of eval7.Card
@@ -115,15 +174,18 @@ class PokerEngine:
         self.action_log      = []          # flat dicts (backwards-compat for bots)
         self.events          = []          # rich event log for replay
         self.current_bet     = 0
-        self.min_raise       = BIG_BLIND
+        self.min_raise       = big_blind
 
         # Short all-in: only reopen action if raise >= last full raise size
-        self._last_aggression_size = BIG_BLIND
+        self._last_aggression_size = big_blind
 
         self._needs_to_act    = set()
-        self._deck_cards      = []         # list[eval7.Card] after shuffle
-        self._deck_idx        = 0
         self._starting_stacks = {}         # snapshot before hand starts
+        self.to_act: Optional[int] = None  # seat we're waiting on
+        self.is_complete      = False
+
+        self._hole_plan, self._board_plan = self._plan_deal(hole_cards, board)
+        self.rigged = bool(hole_cards) or any(c is not None for c in (board or []))
 
     # -----------------------------------------------------------------------
     # Public API
@@ -131,7 +193,6 @@ class PokerEngine:
 
     def start_hand(self) -> dict:
         self._snapshot_stacks()
-        self._build_deck()
         self._post_blinds()
         self._deal_hole_cards()
 
@@ -139,10 +200,26 @@ class PokerEngine:
         self._needs_to_act = {p.seat for p in self.players if p.is_active}
 
         self._emit("street_start", {"street": "preflop", "community_cards": []})
-        return self._build_state(self._utg_seat())
 
-    def apply_action(self, seat: int, raw: dict) -> dict:
-        action = self._validate(seat, raw)
+        if not self._action_needed():
+            self._needs_to_act.clear()
+            return self._advance_street()
+
+        utg = self._utg_seat()
+        first = utg if utg in self._needs_to_act else self._next_actor(utg)
+        return self._build_state(first)
+
+    def apply_action(self, seat: int, raw: dict, strict: bool = False) -> dict:
+        """Apply `raw` for `seat`. Lenient by default: illegal actions are
+        corrected (raises snapped to legal sizes, unknown actions fold).
+        With strict=True, illegal actions raise IllegalActionError."""
+        if self.is_complete:
+            raise IllegalActionError(f"[{self.hand_id}] Hand is already complete")
+        if seat != self.to_act:
+            raise IllegalActionError(
+                f"[{self.hand_id}] Seat {seat} acted out of turn; waiting on seat {self.to_act}")
+
+        action = self._validate_strict(seat, raw) if strict else self._validate(seat, raw)
         self.action_log.append(action.to_dict())
         self._needs_to_act.discard(seat)
         p = self.players[seat]
@@ -181,30 +258,55 @@ class PokerEngine:
             self._emit_action(seat, "all_in", p.bet_this_street)
 
         # Everyone folded except one?
-        remaining = [pl for pl in self.players if not pl.is_folded]
+        remaining = [pl for pl in self.players if pl.in_hand]
         if len(remaining) == 1:
             return self._award_uncontested(remaining[0])
 
         return self._advance_if_street_over(seat)
 
+    def legal_actions(self, seat: Optional[int] = None) -> dict:
+        """What `seat` (default: the seat to act) may do right now.
+        Raise amounts are totals for the street, like the "raise" action."""
+        seat = self.to_act if seat is None else seat
+        p    = self.players[seat]
+        owed = max(0, self.current_bet - p.bet_this_street)
+        max_to = p.stack + p.bet_this_street
+        opponents_can_act = any(
+            pl.is_active for pl in self.players if pl.seat != seat)
+        can_raise = p.stack > owed and opponents_can_act
+        return {
+            "can_fold":     True,
+            "can_check":    owed == 0,
+            "call_amount":  min(owed, p.stack),
+            "can_raise":    can_raise,
+            # if a full min-raise is unaffordable, all-in is the only raise
+            "min_raise_to": min(self.current_bet + self.min_raise, max_to) if can_raise else None,
+            "max_raise_to": max_to if can_raise else None,
+        }
+
     # -----------------------------------------------------------------------
-    # Heads-up seat helpers
+    # Seat helpers (sitting-out seats are skipped everywhere)
     # -----------------------------------------------------------------------
 
     @property
     def _is_heads_up(self) -> bool:
-        return self.n == 2
+        return len(self._live) == 2
+
+    def _next_live(self, seat: int) -> int:
+        for offset in range(1, self.n + 1):
+            s = (seat + offset) % self.n
+            if not self.players[s].sitting_out:
+                return s
+        raise AssertionError("no live seats")
 
     def _sb_seat(self) -> int:
         """Heads-up: dealer IS the small blind."""
         if self._is_heads_up:
             return self.dealer_seat
-        return (self.dealer_seat + 1) % self.n
+        return self._next_live(self.dealer_seat)
 
     def _bb_seat(self) -> int:
-        if self._is_heads_up:
-            return (self.dealer_seat + 1) % self.n
-        return (self.dealer_seat + 2) % self.n
+        return self._next_live(self._sb_seat())
 
     def _utg_seat(self) -> int:
         """
@@ -241,6 +343,18 @@ class PokerEngine:
     # Action flow
     # -----------------------------------------------------------------------
 
+    def _action_needed(self) -> bool:
+        """Is there any betting decision left to make on this street?
+        No if nobody can act, or only one player can and owes nothing
+        (nobody could respond to a bet)."""
+        active = [p for p in self.players if p.is_active]
+        if not active:
+            return False
+        if len(active) == 1:
+            p = active[0]
+            return self.current_bet - p.bet_this_street > 0
+        return True
+
     def _handle_aggression(self, seat: int, raise_size: int):
         """
         If raise_size >= last full raise: reopen action for everyone except aggressor.
@@ -265,54 +379,42 @@ class PokerEngine:
         return None
 
     def _advance_if_street_over(self, last_seat: int) -> dict:
+        if not self._action_needed():
+            self._needs_to_act.clear()
         nxt = self._next_actor(last_seat)
         if nxt is not None:
             return self._build_state(nxt)
         return self._advance_street()
 
     def _advance_street(self) -> dict:
-        for p in self.players:
-            p.bet_this_street = 0
-        self.current_bet           = 0
-        self.min_raise             = BIG_BLIND
-        self._last_aggression_size = BIG_BLIND
+        """Deal the next street. If nobody can bet on it, keep dealing
+        (running out the board) until showdown."""
+        while True:
+            for p in self.players:
+                p.bet_this_street = 0
+            self.current_bet           = 0
+            self.min_raise             = self.big_blind
+            self._last_aggression_size = self.big_blind
 
-        if self.street == "preflop":
-            self.community_cards += self._deal(3)
-            self.street = "flop"
-        elif self.street == "flop":
-            self.community_cards += self._deal(1)
-            self.street = "turn"
-        elif self.street == "turn":
-            self.community_cards += self._deal(1)
-            self.street = "river"
-        elif self.street == "river":
-            return self._showdown()
+            if self.street == "river":
+                return self._showdown()
 
-        self._emit("street_start", {
-            "street":          self.street,
-            "community_cards": [str(c) for c in self.community_cards],
-        })
+            if self.street == "preflop":
+                self.street = "flop"
+            elif self.street == "flop":
+                self.street = "turn"
+            else:
+                self.street = "river"
+            self._deal_board()
 
-        first = self._first_postflop_actor()
-        if first is None:
-            return self._run_it_out()
+            self._emit("street_start", {
+                "street":          self.street,
+                "community_cards": [str(c) for c in self.community_cards],
+            })
 
-        self._needs_to_act = {p.seat for p in self.players if p.is_active}
-        return self._build_state(first)
-
-    def _run_it_out(self) -> dict:
-        """All remaining players are all-in — run out the board silently."""
-        if self.street == "preflop":
-            self.community_cards += self._deal(3)
-            self.street = "flop"
-        if self.street == "flop":
-            self.community_cards += self._deal(1)
-            self.street = "turn"
-        if self.street == "turn":
-            self.community_cards += self._deal(1)
-            self.street = "river"
-        return self._showdown()
+            if self._action_needed():
+                self._needs_to_act = {p.seat for p in self.players if p.is_active}
+                return self._build_state(self._first_postflop_actor())
 
     # -----------------------------------------------------------------------
     # Chips
@@ -323,13 +425,13 @@ class PokerEngine:
 
     def _post_blinds(self):
         sb, bb       = self._sb_seat(), self._bb_seat()
-        sb_amount    = min(SMALL_BLIND, self.players[sb].stack)
-        bb_amount    = min(BIG_BLIND,   self.players[bb].stack)
+        sb_amount    = min(self.small_blind, self.players[sb].stack)
+        bb_amount    = min(self.big_blind,   self.players[bb].stack)
         self._put_in(sb, sb_amount)
         self._put_in(bb, bb_amount)
         self.current_bet           = max(self.current_bet, bb_amount)
-        self.min_raise             = BIG_BLIND
-        self._last_aggression_size = BIG_BLIND
+        self.min_raise             = self.big_blind
+        self._last_aggression_size = self.big_blind
         if self.players[sb].stack == 0:
             self.players[sb].is_all_in = True
         if self.players[bb].stack == 0:
@@ -354,50 +456,94 @@ class PokerEngine:
     # Deck
     # -----------------------------------------------------------------------
 
-    def _build_deck(self):
-        """Build and (optionally deterministic) shuffle a full 52-card deck."""
+    def _plan_deal(self, hole_cards: Optional[dict], board: Optional[list]):
+        """Decide every card up front: rigged cards where given, the rest
+        drawn from the remaining deck. Draw order (each live seat's two
+        cards in seat order, then five board cards) matches upstream, so an
+        unrigged seeded hand deals the same cards as before."""
+        hole_cards = {int(s): list(cs) for s, cs in (hole_cards or {}).items()}
+        board      = list(board or [])
+        if len(board) > 5:
+            raise ValueError(f"Board has {len(board)} cards; max is 5")
+        board += [None] * (5 - len(board))
+
+        fixed = []
+        for seat, cards in hole_cards.items():
+            if not 0 <= seat < self.n:
+                raise ValueError(f"No seat {seat}")
+            if self.players[seat].sitting_out:
+                raise ValueError(f"Seat {seat} is sitting out and gets no cards")
+            if len(cards) != 2:
+                raise ValueError(f"Seat {seat} needs exactly 2 hole cards, got {cards}")
+            fixed += cards
+        fixed += [c for c in board if c is not None]
+
+        fixed_cards = [_parse_card(c) for c in fixed]
+        if len(set(fixed_cards)) != len(fixed_cards):
+            dupes = sorted({str(c) for c in fixed_cards if fixed_cards.count(c) > 1})
+            raise ValueError(f"Duplicate cards: {dupes}")
+
         ranks = "23456789TJQKA"
         suits = "shdc"
-        cards = [eval7.Card(r + s) for r in ranks for s in suits]
-        if self.seed is not None:
-            rng = random.Random(self.seed)
-            rng.shuffle(cards)
-        else:
-            random.shuffle(cards)
-        self._deck_cards = cards
-        self._deck_idx   = 0
+        deck  = [eval7.Card(r + s) for r in ranks for s in suits]
+        deck  = [c for c in deck if c not in fixed_cards]
+        rng   = random.Random(self.seed) if self.seed is not None else random
+        rng.shuffle(deck)
+        draw  = iter(deck)
 
-    def _deal(self, n: int) -> list:
-        cards          = self._deck_cards[self._deck_idx: self._deck_idx + n]
-        self._deck_idx += n
-        return cards
+        hole_plan = {}
+        for seat in self._live:
+            if seat in hole_cards:
+                hole_plan[seat] = [_parse_card(c) for c in hole_cards[seat]]
+            else:
+                hole_plan[seat] = [next(draw), next(draw)]
+        board_plan = [_parse_card(c) if c is not None else next(draw) for c in board]
+        return hole_plan, board_plan
 
     def _deal_hole_cards(self):
-        for p in self.players:
-            p.hole_cards = self._deal(2)
+        for seat, cards in self._hole_plan.items():
+            self.players[seat].hole_cards = list(cards)
+
+    def _deal_board(self):
+        n = 3 if not self.community_cards else 1
+        k = len(self.community_cards)
+        self.community_cards += self._board_plan[k:k + n]
 
     # -----------------------------------------------------------------------
     # Validation
     # -----------------------------------------------------------------------
 
-    def _validate(self, seat: int, raw: dict) -> Action:
-        p   = self.players[seat]
+    @staticmethod
+    def _parse_raw(raw) -> tuple:
+        raw = raw if isinstance(raw, dict) else {}
         act = str(raw.get("action", "fold")).lower().strip()
         try:
             amount = int(raw.get("amount") or 0)
         except (TypeError, ValueError):
-            amount = 0
+            amount = None
+        return act, amount
 
-        if act not in ("fold", "check", "call", "raise", "all_in"):
+    def _validate(self, seat: int, raw: dict) -> Action:
+        """Lenient: always returns a legal action, correcting if needed."""
+        p      = self.players[seat]
+        legal  = self.legal_actions(seat)
+        act, amount = self._parse_raw(raw)
+        amount = amount or 0
+
+        if act not in ACTIONS:
             return Action(seat, "fold")
 
         owed = self.current_bet - p.bet_this_street
 
-        if act == "check":
+        def check_or_call():
             return Action(seat, "check") if owed == 0 else Action(seat, "call", owed)
 
-        if act == "call":
-            return Action(seat, "check") if owed == 0 else Action(seat, "call", owed)
+        if act in ("check", "call"):
+            return check_or_call()
+
+        if act in ("raise", "all_in") and not legal["can_raise"]:
+            # nobody left who could respond, or can't cover more than a call
+            return check_or_call()
 
         if act == "raise":
             min_total    = self.current_bet + self.min_raise
@@ -410,14 +556,58 @@ class PokerEngine:
         if act == "all_in":
             return Action(seat, "all_in", p.stack + p.bet_this_street)
 
-        return Action(seat, act, amount)
+        return Action(seat, "fold")
+
+    def _validate_strict(self, seat: int, raw: dict) -> Action:
+        """Strict: returns the action as given, or raises IllegalActionError."""
+        p     = self.players[seat]
+        legal = self.legal_actions(seat)
+        act, amount = self._parse_raw(raw)
+
+        def illegal(msg):
+            return IllegalActionError(f"[{self.hand_id}] Seat {seat} {act}: {msg}")
+
+        if act not in ACTIONS:
+            raise illegal(f"unknown action; expected one of {ACTIONS}")
+
+        owed = self.current_bet - p.bet_this_street
+
+        if act == "fold":
+            return Action(seat, "fold")
+
+        if act == "check":
+            if owed > 0:
+                raise illegal(f"can't check, owes {owed}")
+            return Action(seat, "check")
+
+        if act == "call":
+            if owed == 0:
+                raise illegal("nothing to call; use check")
+            return Action(seat, "call", owed)
+
+        if act == "all_in":
+            if not legal["can_raise"] and p.stack > owed:
+                raise illegal("can't raise here; call or fold")
+            return Action(seat, "all_in", p.stack + p.bet_this_street)
+
+        # raise
+        if not legal["can_raise"]:
+            raise illegal("can't raise here")
+        if amount is None:
+            raise illegal("amount must be an integer")
+        lo, hi = legal["min_raise_to"], legal["max_raise_to"]
+        if amount == hi:
+            return Action(seat, "all_in", hi)
+        if not lo <= amount < hi:
+            raise illegal(f"raise to {amount} outside [{lo}, {hi}]")
+        return Action(seat, "raise", amount)
 
     # -----------------------------------------------------------------------
     # Resolution
     # -----------------------------------------------------------------------
 
     def _showdown(self) -> dict:
-        contenders = [p for p in self.players if not p.is_folded]
+        contenders = [p for p in self.players if p.in_hand]
         if len(contenders) == 1:
             return self._award_uncontested(contenders[0])
 
@@ -482,7 +672,7 @@ class PokerEngine:
         Build side pots based on total_invested per player.
         Returns list of {amount, eligible} sorted smallest to largest.
         """
-        in_players = [p for p in self.players if not p.is_folded]
+        in_players = [p for p in self.players if p.in_hand]
         if not in_players:
             return [{"amount": self.pot, "eligible": []}]
 
@@ -553,19 +743,25 @@ class PokerEngine:
     # -----------------------------------------------------------------------
 
     def _build_state(self, seat: int) -> dict:
+        self.to_act = seat
         p    = self.players[seat]
         owed = max(0, self.current_bet - p.bet_this_street)
         return {
             "type":                  "action_request",
             "hand_id":               self.hand_id,
+            "hand_num":              self.hand_num,
             "street":                self.street,
             "seat_to_act":           seat,
+            "dealer_seat":           self.dealer_seat,
+            "small_blind":           self.small_blind,
+            "big_blind":             self.big_blind,
             "pot":                   self.pot,
             "community_cards":       [str(c) for c in self.community_cards],
             "current_bet":           self.current_bet,
             "min_raise_to":          self.current_bet + self.min_raise,
             "amount_owed":           owed,
             "can_check":             owed == 0,
+            "legal_actions":         self.legal_actions(seat),
             "your_cards":            [str(c) for c in p.hole_cards],
             "your_stack":            p.stack,
             "your_bet_this_street":  p.bet_this_street,
@@ -580,10 +776,14 @@ class PokerEngine:
         revealed: Optional[dict] = None,
         hand_strengths: Optional[dict] = None,
     ) -> dict:
+        self.to_act      = None
+        self.is_complete = True
         return {
             "type":            "hand_complete",
             "hand_id":         self.hand_id,
+            "hand_num":        self.hand_num,
             "street":          self.street,
+            "dealer_seat":     self.dealer_seat,
             "pot":             self.pot,
             "community_cards": [str(c) for c in self.community_cards],
             "winners":         winners,
