@@ -8,9 +8,9 @@ This is a fork of [fullhouse-engine](https://github.com/uzlez/fullhouse-engine),
 the engine from the 2026 Fullhouse Hackathon. We keep its No-Limit Hold'em
 engine and bot protocol, and build an arena around them.
 
-**Status:** phase 1 (core) is done and phase 2 (logs and evaluation) is
-nearly done: matches, spots, replay, cross-match queries, probes, test
-suites and duplicate comparisons all work from the `arena` CLI (see
+**Status:** phases 1 (core) and 2 (logs and evaluation) are done:
+matches, spots, replay, cross-match queries, probes, test suites,
+duplicate comparisons and agent briefs all work from the `arena` CLI (see
 [What works today](#what-works-today)). The server, frontend, human seats
 and LLM bots are still planned.
 
@@ -138,7 +138,7 @@ ratings and out of the default data agents learn from.
   them.
 
 `spot`, `spots`, `hand`, `equity`, `match`, the queries, `probe`/`sweep`,
-`test` and `compare` exist today (see [What works today](#what-works-today)).
+`test`, `compare` and `brief` exist today (see [What works today](#what-works-today)).
 Still planned:
 
 ```bash
@@ -153,11 +153,10 @@ arena runout <spot> --seats mybot,shark --runs 500   # play to the end many time
    `legal_actions()`, strict mode, rigged deals, uncalled bets), spots and
    `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
    the async match runner, the run store and replay.
-2. **Logs and evaluation:** the cross-match index and queries
-   (`arena stats/hands/decisions/sql`, 2a), `arena probe/sweep` (2b) and
-   test suites with expected answers (`arena test`, 2c) and duplicate
-   comparisons (`arena compare`, 2d) are **done**. Still to do:
-   short briefs for agents (2e).
+2. **Logs and evaluation** (**done**): the cross-match index and queries
+   (`arena stats/hands/decisions/sql`), `arena probe/sweep`, test suites
+   with expected answers (`arena test`), duplicate comparisons
+   (`arena compare`) and briefs for agents (`arena brief`).
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
 4. **Human seats:** play mode with optional god view, edit and fork from
    replay.
@@ -461,6 +460,39 @@ How it works:
 The matches are stored and indexed like any others (ids `c-...-A-r0`,
 ...), so `arena stats` and `arena hands` work on them. `arena compares`
 lists comparisons; `arena compares ID` shows one again.
+
+### Brief an agent
+
+`arena brief` is the starting point for an agent working on a bot: a short
+summary that fits in its context, with every detail one command away.
+
+```bash
+arena brief mybot                      # across all its matches (--last N, --version V)
+arena brief 20261002-141530-ab12       # a whole match
+arena brief mybot --match ID --max-lines 25
+```
+```
+brief: mathematician (version 782e554e28f8) · 643 hands in 2 match(es)
+result  -7.8 bb/100 (95% CI -16.3 .. +0.6): not distinguishable from break-even
+style   VPIP 24% PFR 0% 3-bet 0% AF 0.0 WTSD 74% W$SD 60%
+leaks (most costly first):
+  - 18 folds were +EV calls against the actual cards (~70 bb given up, hindsight)  -> arena decisions --bot mathematician --action fold --equity-above 0.4 --sort pot
+  - folds to 92% of flop bets (n=25): easy to bluff  -> arena decisions --bot mathematician --street flop --facing-bet
+  - never raises preflop (VPIP 24%, PFR 0%)
+  - loses most in SB: -34.3 bb/100 over 169 hands  -> arena hands --bot mathematician --pos SB
+costliest hands (arena match hand REF):
+  five1:22  BB   5dKs  3c6dJc6s9c  -300  showdown
+  ...
+tests   t-20261002-143604-aa07: 3/5 passed (failed: dont-fold-the-nuts, raise-aces-short)
+next: arena stats mathematician · arena hands --bot mathematician --lost-more 1000 · ...
+```
+
+Leaks are only flagged with enough data, and the ones with a chip cost
+come first. "+EV call" and "-EV call" compare equity against the actual
+cards with the pot odds, ignoring later betting, so treat them as
+pointers, not verdicts. The brief also lists the bot version's latest
+`arena test` runs and the bot's latest comparisons. `--json` gives the same
+content as structured data.
 
 ### The bot contract
 
