@@ -1,0 +1,3333 @@
+{
+  "api_version": 1,
+  "messages": {
+    "Account": {
+      "additionalProperties": true,
+      "description": "GET /api/account",
+      "properties": {
+        "api_version": {
+          "default": 1,
+          "title": "Api Version",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "owner": {
+          "title": "Owner",
+          "type": "string"
+        },
+        "ratings": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Ratings",
+          "type": "object"
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scopes",
+          "type": "array"
+        },
+        "title": {
+          "const": "BOT",
+          "default": "BOT",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "owner",
+        "created_at",
+        "scopes"
+      ],
+      "title": "Account",
+      "type": "object"
+    },
+    "ActionMessage": {
+      "additionalProperties": true,
+      "properties": {
+        "action": {
+          "enum": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "amount": {
+          "title": "Amount",
+          "type": "integer"
+        },
+        "bot": {
+          "title": "Bot",
+          "type": "string"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "pot_after": {
+          "title": "Pot After",
+          "type": "integer"
+        },
+        "seat": {
+          "title": "Seat",
+          "type": "integer"
+        },
+        "stacks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Stacks",
+          "type": "array"
+        },
+        "street": {
+          "enum": [
+            "preflop",
+            "flop",
+            "turn",
+            "river"
+          ],
+          "title": "Street",
+          "type": "string"
+        },
+        "type": {
+          "const": "action",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "hand_num",
+        "street",
+        "seat",
+        "bot",
+        "action",
+        "amount",
+        "pot_after",
+        "stacks"
+      ],
+      "title": "ActionMessage",
+      "type": "object"
+    },
+    "Blind": {
+      "additionalProperties": true,
+      "properties": {
+        "amount": {
+          "title": "Amount",
+          "type": "integer"
+        },
+        "bot": {
+          "title": "Bot",
+          "type": "string"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "small_blind",
+            "big_blind"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "seat": {
+          "title": "Seat",
+          "type": "integer"
+        },
+        "type": {
+          "const": "blind",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "hand_num",
+        "seat",
+        "bot",
+        "kind",
+        "amount"
+      ],
+      "title": "Blind",
+      "type": "object"
+    },
+    "Challenge": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "challenger": {
+          "$ref": "#/$defs/BotRef"
+        },
+        "dest": {
+          "$ref": "#/$defs/BotRef"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO 8601 time the challenge lapses",
+          "title": "Expires At"
+        },
+        "format": {
+          "$ref": "#/$defs/Format"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "rated": {
+          "default": false,
+          "title": "Rated",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "created",
+          "enum": [
+            "created",
+            "accepted",
+            "declined",
+            "canceled",
+            "expired"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "challenger",
+        "dest",
+        "format"
+      ],
+      "title": "Challenge",
+      "type": "object"
+    },
+    "ChallengeCanceledEvent": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Challenge": {
+          "additionalProperties": true,
+          "properties": {
+            "challenger": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "dest": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "expires_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "ISO 8601 time the challenge lapses",
+              "title": "Expires At"
+            },
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "status": {
+              "default": "created",
+              "enum": [
+                "created",
+                "accepted",
+                "declined",
+                "canceled",
+                "expired"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "challenger",
+            "dest",
+            "format"
+          ],
+          "title": "Challenge",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        },
+        "type": {
+          "const": "challenge_canceled",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "challenge"
+      ],
+      "title": "ChallengeCanceledEvent",
+      "type": "object"
+    },
+    "ChallengeDeclinedEvent": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Challenge": {
+          "additionalProperties": true,
+          "properties": {
+            "challenger": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "dest": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "expires_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "ISO 8601 time the challenge lapses",
+              "title": "Expires At"
+            },
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "status": {
+              "default": "created",
+              "enum": [
+                "created",
+                "accepted",
+                "declined",
+                "canceled",
+                "expired"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "challenger",
+            "dest",
+            "format"
+          ],
+          "title": "Challenge",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        },
+        "reason": {
+          "default": "generic",
+          "title": "Reason",
+          "type": "string"
+        },
+        "type": {
+          "const": "challenge_declined",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "challenge"
+      ],
+      "title": "ChallengeDeclinedEvent",
+      "type": "object"
+    },
+    "ChallengeEvent": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Challenge": {
+          "additionalProperties": true,
+          "properties": {
+            "challenger": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "dest": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "expires_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "ISO 8601 time the challenge lapses",
+              "title": "Expires At"
+            },
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "status": {
+              "default": "created",
+              "enum": [
+                "created",
+                "accepted",
+                "declined",
+                "canceled",
+                "expired"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "challenger",
+            "dest",
+            "format"
+          ],
+          "title": "Challenge",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        },
+        "type": {
+          "const": "challenge",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "challenge"
+      ],
+      "title": "ChallengeEvent",
+      "type": "object"
+    },
+    "ChallengeRequest": {
+      "$defs": {
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "POST /api/challenge/{bot}",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/Format"
+        },
+        "rated": {
+          "default": false,
+          "title": "Rated",
+          "type": "boolean"
+        }
+      },
+      "title": "ChallengeRequest",
+      "type": "object"
+    },
+    "Decide": {
+      "$defs": {
+        "DecideState": {
+          "additionalProperties": true,
+          "description": "Exactly the state a bot's decide(state, ctx) receives, locally and in\nproduction.",
+          "properties": {
+            "action_log": {
+              "items": {
+                "$ref": "#/$defs/LoggedAction"
+              },
+              "title": "Action Log",
+              "type": "array"
+            },
+            "amount_owed": {
+              "title": "Amount Owed",
+              "type": "integer"
+            },
+            "big_blind": {
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "can_check": {
+              "title": "Can Check",
+              "type": "boolean"
+            },
+            "community_cards": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Community Cards",
+              "type": "array"
+            },
+            "current_bet": {
+              "title": "Current Bet",
+              "type": "integer"
+            },
+            "dealer_seat": {
+              "title": "Dealer Seat",
+              "type": "integer"
+            },
+            "hand_id": {
+              "title": "Hand Id",
+              "type": "string"
+            },
+            "hand_num": {
+              "title": "Hand Num",
+              "type": "integer"
+            },
+            "legal_actions": {
+              "$ref": "#/$defs/LegalActions"
+            },
+            "match_action_log": {
+              "items": {
+                "$ref": "#/$defs/MatchLogEntry"
+              },
+              "title": "Match Action Log",
+              "type": "array"
+            },
+            "min_raise_to": {
+              "title": "Min Raise To",
+              "type": "integer"
+            },
+            "players": {
+              "items": {
+                "$ref": "#/$defs/PublicPlayer"
+              },
+              "title": "Players",
+              "type": "array"
+            },
+            "pot": {
+              "title": "Pot",
+              "type": "integer"
+            },
+            "seat_to_act": {
+              "title": "Seat To Act",
+              "type": "integer"
+            },
+            "small_blind": {
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "street": {
+              "enum": [
+                "preflop",
+                "flop",
+                "turn",
+                "river"
+              ],
+              "title": "Street",
+              "type": "string"
+            },
+            "type": {
+              "const": "action_request",
+              "default": "action_request",
+              "title": "Type",
+              "type": "string"
+            },
+            "your_bet_this_street": {
+              "title": "Your Bet This Street",
+              "type": "integer"
+            },
+            "your_cards": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Your Cards",
+              "type": "array"
+            },
+            "your_stack": {
+              "title": "Your Stack",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hand_id",
+            "hand_num",
+            "street",
+            "seat_to_act",
+            "dealer_seat",
+            "small_blind",
+            "big_blind",
+            "pot",
+            "community_cards",
+            "current_bet",
+            "min_raise_to",
+            "amount_owed",
+            "can_check",
+            "legal_actions",
+            "your_cards",
+            "your_stack",
+            "your_bet_this_street",
+            "players",
+            "action_log"
+          ],
+          "title": "DecideState",
+          "type": "object"
+        },
+        "LegalActions": {
+          "additionalProperties": true,
+          "properties": {
+            "call_amount": {
+              "title": "Call Amount",
+              "type": "integer"
+            },
+            "can_check": {
+              "title": "Can Check",
+              "type": "boolean"
+            },
+            "can_fold": {
+              "title": "Can Fold",
+              "type": "boolean"
+            },
+            "can_raise": {
+              "title": "Can Raise",
+              "type": "boolean"
+            },
+            "max_raise_to": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Raise To"
+            },
+            "min_raise_to": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Raise To"
+            }
+          },
+          "required": [
+            "can_fold",
+            "can_check",
+            "call_amount",
+            "can_raise",
+            "min_raise_to",
+            "max_raise_to"
+          ],
+          "title": "LegalActions",
+          "type": "object"
+        },
+        "LoggedAction": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "title": "Amount",
+              "type": "integer"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "action",
+            "amount"
+          ],
+          "title": "LoggedAction",
+          "type": "object"
+        },
+        "MatchLogEntry": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Amount"
+            },
+            "bot_id": {
+              "title": "Bot Id",
+              "type": "string"
+            },
+            "hand_num": {
+              "title": "Hand Num",
+              "type": "integer"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hand_num",
+            "seat",
+            "bot_id",
+            "action"
+          ],
+          "title": "MatchLogEntry",
+          "type": "object"
+        },
+        "PublicPlayer": {
+          "additionalProperties": true,
+          "properties": {
+            "bet_this_street": {
+              "title": "Bet This Street",
+              "type": "integer"
+            },
+            "bot_id": {
+              "title": "Bot Id",
+              "type": "string"
+            },
+            "hole_cards": {
+              "default": null,
+              "title": "Hole Cards",
+              "type": "null"
+            },
+            "is_all_in": {
+              "title": "Is All In",
+              "type": "boolean"
+            },
+            "is_folded": {
+              "title": "Is Folded",
+              "type": "boolean"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            },
+            "stack": {
+              "title": "Stack",
+              "type": "integer"
+            },
+            "state": {
+              "enum": [
+                "active",
+                "folded",
+                "all_in",
+                "busted"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          "required": [
+            "seat",
+            "bot_id",
+            "stack",
+            "state",
+            "is_folded",
+            "is_all_in",
+            "bet_this_street"
+          ],
+          "title": "PublicPlayer",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "bank_s": {
+          "description": "time left in your bank for the match",
+          "title": "Bank S",
+          "type": "number"
+        },
+        "decision_id": {
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "decision_s": {
+          "description": "time for this decision before the bank is used",
+          "title": "Decision S",
+          "type": "number"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/DecideState"
+        },
+        "type": {
+          "const": "decide",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "decision_id",
+        "hand_num",
+        "decision_s",
+        "bank_s",
+        "state"
+      ],
+      "title": "Decide",
+      "type": "object"
+    },
+    "DecisionAccepted": {
+      "$defs": {
+        "ActionBody": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "enum": [
+                "fold",
+                "check",
+                "call",
+                "raise",
+                "all_in"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "raise: total bet for the street, not the increase",
+              "title": "Amount"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "title": "ActionBody",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "applied": {
+          "$ref": "#/$defs/ActionBody"
+        },
+        "corrected": {
+          "title": "Corrected",
+          "type": "boolean"
+        },
+        "ok": {
+          "const": true,
+          "default": true,
+          "title": "Ok",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "applied",
+        "corrected"
+      ],
+      "title": "DecisionAccepted",
+      "type": "object"
+    },
+    "DecisionRequest": {
+      "$defs": {
+        "ActionBody": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "enum": [
+                "fold",
+                "check",
+                "call",
+                "raise",
+                "all_in"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "raise: total bet for the street, not the increase",
+              "title": "Amount"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "title": "ActionBody",
+          "type": "object"
+        },
+        "LogEntry": {
+          "additionalProperties": true,
+          "properties": {
+            "data": {
+              "additionalProperties": true,
+              "title": "Data",
+              "type": "object"
+            },
+            "msg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Msg"
+            }
+          },
+          "title": "LogEntry",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "POST /api/bot/match/{id}/decision",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ActionBody"
+        },
+        "decision_id": {
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "logs": {
+          "items": {
+            "$ref": "#/$defs/LogEntry"
+          },
+          "maxItems": 200,
+          "title": "Logs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "decision_id",
+        "action"
+      ],
+      "title": "DecisionRequest",
+      "type": "object"
+    },
+    "DecisionResult": {
+      "$defs": {
+        "ActionBody": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "enum": [
+                "fold",
+                "check",
+                "call",
+                "raise",
+                "all_in"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "raise: total bet for the street, not the increase",
+              "title": "Amount"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "title": "ActionBody",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "Sent only to the bot that decided.",
+      "properties": {
+        "applied": {
+          "$ref": "#/$defs/ActionBody"
+        },
+        "bank_s": {
+          "title": "Bank S",
+          "type": "number"
+        },
+        "corrected": {
+          "description": "the reply was illegal and the engine adjusted it",
+          "title": "Corrected",
+          "type": "boolean"
+        },
+        "decision_id": {
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "enum": [
+                "timeout",
+                "disconnected",
+                "invalid"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "type": {
+          "const": "decision_result",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "decision_id",
+        "applied",
+        "corrected",
+        "bank_s"
+      ],
+      "title": "DecisionResult",
+      "type": "object"
+    },
+    "DeclineRequest": {
+      "additionalProperties": true,
+      "description": "POST /api/challenge/{id}/decline",
+      "properties": {
+        "reason": {
+          "default": "generic",
+          "enum": [
+            "generic",
+            "later",
+            "format",
+            "rated",
+            "casual",
+            "too_many_matches"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "DeclineRequest",
+      "type": "object"
+    },
+    "ErrorBody": {
+      "additionalProperties": true,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error",
+        "code"
+      ],
+      "title": "ErrorBody",
+      "type": "object"
+    },
+    "Format": {
+      "$defs": {
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "What kind of match: table size, length, blinds, stacks, clock.",
+      "properties": {
+        "big_blind": {
+          "default": 100,
+          "exclusiveMinimum": 0,
+          "title": "Big Blind",
+          "type": "integer"
+        },
+        "clock": {
+          "$ref": "#/$defs/Clock"
+        },
+        "hands": {
+          "default": 100,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Hands",
+          "type": "integer"
+        },
+        "reset_stacks": {
+          "default": false,
+          "description": "every hand starts from `stack` (no busting)",
+          "title": "Reset Stacks",
+          "type": "boolean"
+        },
+        "seats": {
+          "default": 2,
+          "maximum": 9,
+          "minimum": 2,
+          "title": "Seats",
+          "type": "integer"
+        },
+        "small_blind": {
+          "default": 50,
+          "exclusiveMinimum": 0,
+          "title": "Small Blind",
+          "type": "integer"
+        },
+        "stack": {
+          "default": 10000,
+          "exclusiveMinimum": 0,
+          "title": "Stack",
+          "type": "integer"
+        }
+      },
+      "title": "Format",
+      "type": "object"
+    },
+    "HandEnd": {
+      "$defs": {
+        "Uncalled": {
+          "additionalProperties": true,
+          "properties": {
+            "amount": {
+              "title": "Amount",
+              "type": "integer"
+            },
+            "bot": {
+              "title": "Bot",
+              "type": "string"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "bot",
+            "amount"
+          ],
+          "title": "Uncalled",
+          "type": "object"
+        },
+        "Winner": {
+          "additionalProperties": true,
+          "properties": {
+            "amount": {
+              "title": "Amount",
+              "type": "integer"
+            },
+            "bot": {
+              "title": "Bot",
+              "type": "string"
+            },
+            "pot_type": {
+              "enum": [
+                "main",
+                "side"
+              ],
+              "title": "Pot Type",
+              "type": "string"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "bot",
+            "amount",
+            "pot_type"
+          ],
+          "title": "Winner",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "board": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Board",
+          "type": "array"
+        },
+        "delta": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Delta",
+          "type": "array"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "pot": {
+          "title": "Pot",
+          "type": "integer"
+        },
+        "revealed": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "seat -> hole cards, only for hands shown at showdown",
+          "title": "Revealed",
+          "type": "object"
+        },
+        "showdown": {
+          "title": "Showdown",
+          "type": "boolean"
+        },
+        "stacks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Stacks",
+          "type": "array"
+        },
+        "type": {
+          "const": "hand_end",
+          "title": "Type",
+          "type": "string"
+        },
+        "uncalled": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uncalled"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "winners": {
+          "items": {
+            "$ref": "#/$defs/Winner"
+          },
+          "title": "Winners",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "hand_num",
+        "board",
+        "pot",
+        "showdown",
+        "winners",
+        "stacks",
+        "delta"
+      ],
+      "title": "HandEnd",
+      "type": "object"
+    },
+    "HandStart": {
+      "additionalProperties": true,
+      "properties": {
+        "blinds": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Blinds",
+          "type": "array"
+        },
+        "dealer_seat": {
+          "title": "Dealer Seat",
+          "type": "integer"
+        },
+        "hand_id": {
+          "title": "Hand Id",
+          "type": "string"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "positions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "seat number (as a string) -> position name",
+          "title": "Positions",
+          "type": "object"
+        },
+        "stacks": {
+          "description": "every seat's stack before blinds; 0 = sitting out",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Stacks",
+          "type": "array"
+        },
+        "type": {
+          "const": "hand_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "your_cards": {
+          "description": "only your own hole cards",
+          "items": {
+            "type": "string"
+          },
+          "title": "Your Cards",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "hand_num",
+        "hand_id",
+        "dealer_seat",
+        "positions",
+        "blinds",
+        "stacks",
+        "your_cards"
+      ],
+      "title": "HandStart",
+      "type": "object"
+    },
+    "MatchEnd": {
+      "additionalProperties": true,
+      "properties": {
+        "chip_delta": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Chip Delta",
+          "type": "object"
+        },
+        "hands_played": {
+          "title": "Hands Played",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "hands_complete",
+            "one_player_left",
+            "aborted"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "stacks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Stacks",
+          "type": "array"
+        },
+        "type": {
+          "const": "match_end",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "reason",
+        "hands_played",
+        "stacks",
+        "chip_delta"
+      ],
+      "title": "MatchEnd",
+      "type": "object"
+    },
+    "MatchFinishEvent": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        },
+        "MatchRef": {
+          "additionalProperties": true,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "seats": {
+              "items": {
+                "$ref": "#/$defs/SeatInfo"
+              },
+              "title": "Seats",
+              "type": "array"
+            },
+            "status": {
+              "default": "started",
+              "enum": [
+                "started",
+                "finished",
+                "aborted"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "your_seat": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "absent for spectators",
+              "title": "Your Seat"
+            }
+          },
+          "required": [
+            "id",
+            "format",
+            "seats"
+          ],
+          "title": "MatchRef",
+          "type": "object"
+        },
+        "SeatInfo": {
+          "additionalProperties": true,
+          "properties": {
+            "bot": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "seat": {
+              "maximum": 8,
+              "minimum": 0,
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "bot"
+          ],
+          "title": "SeatInfo",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/MatchRef"
+        },
+        "type": {
+          "const": "match_finish",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "match"
+      ],
+      "title": "MatchFinishEvent",
+      "type": "object"
+    },
+    "MatchFull": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Decide": {
+          "additionalProperties": true,
+          "properties": {
+            "bank_s": {
+              "description": "time left in your bank for the match",
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_id": {
+              "title": "Decision Id",
+              "type": "string"
+            },
+            "decision_s": {
+              "description": "time for this decision before the bank is used",
+              "title": "Decision S",
+              "type": "number"
+            },
+            "hand_num": {
+              "title": "Hand Num",
+              "type": "integer"
+            },
+            "state": {
+              "$ref": "#/$defs/DecideState"
+            },
+            "type": {
+              "const": "decide",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "decision_id",
+            "hand_num",
+            "decision_s",
+            "bank_s",
+            "state"
+          ],
+          "title": "Decide",
+          "type": "object"
+        },
+        "DecideState": {
+          "additionalProperties": true,
+          "description": "Exactly the state a bot's decide(state, ctx) receives, locally and in\nproduction.",
+          "properties": {
+            "action_log": {
+              "items": {
+                "$ref": "#/$defs/LoggedAction"
+              },
+              "title": "Action Log",
+              "type": "array"
+            },
+            "amount_owed": {
+              "title": "Amount Owed",
+              "type": "integer"
+            },
+            "big_blind": {
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "can_check": {
+              "title": "Can Check",
+              "type": "boolean"
+            },
+            "community_cards": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Community Cards",
+              "type": "array"
+            },
+            "current_bet": {
+              "title": "Current Bet",
+              "type": "integer"
+            },
+            "dealer_seat": {
+              "title": "Dealer Seat",
+              "type": "integer"
+            },
+            "hand_id": {
+              "title": "Hand Id",
+              "type": "string"
+            },
+            "hand_num": {
+              "title": "Hand Num",
+              "type": "integer"
+            },
+            "legal_actions": {
+              "$ref": "#/$defs/LegalActions"
+            },
+            "match_action_log": {
+              "items": {
+                "$ref": "#/$defs/MatchLogEntry"
+              },
+              "title": "Match Action Log",
+              "type": "array"
+            },
+            "min_raise_to": {
+              "title": "Min Raise To",
+              "type": "integer"
+            },
+            "players": {
+              "items": {
+                "$ref": "#/$defs/PublicPlayer"
+              },
+              "title": "Players",
+              "type": "array"
+            },
+            "pot": {
+              "title": "Pot",
+              "type": "integer"
+            },
+            "seat_to_act": {
+              "title": "Seat To Act",
+              "type": "integer"
+            },
+            "small_blind": {
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "street": {
+              "enum": [
+                "preflop",
+                "flop",
+                "turn",
+                "river"
+              ],
+              "title": "Street",
+              "type": "string"
+            },
+            "type": {
+              "const": "action_request",
+              "default": "action_request",
+              "title": "Type",
+              "type": "string"
+            },
+            "your_bet_this_street": {
+              "title": "Your Bet This Street",
+              "type": "integer"
+            },
+            "your_cards": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Your Cards",
+              "type": "array"
+            },
+            "your_stack": {
+              "title": "Your Stack",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hand_id",
+            "hand_num",
+            "street",
+            "seat_to_act",
+            "dealer_seat",
+            "small_blind",
+            "big_blind",
+            "pot",
+            "community_cards",
+            "current_bet",
+            "min_raise_to",
+            "amount_owed",
+            "can_check",
+            "legal_actions",
+            "your_cards",
+            "your_stack",
+            "your_bet_this_street",
+            "players",
+            "action_log"
+          ],
+          "title": "DecideState",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        },
+        "LegalActions": {
+          "additionalProperties": true,
+          "properties": {
+            "call_amount": {
+              "title": "Call Amount",
+              "type": "integer"
+            },
+            "can_check": {
+              "title": "Can Check",
+              "type": "boolean"
+            },
+            "can_fold": {
+              "title": "Can Fold",
+              "type": "boolean"
+            },
+            "can_raise": {
+              "title": "Can Raise",
+              "type": "boolean"
+            },
+            "max_raise_to": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Raise To"
+            },
+            "min_raise_to": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Raise To"
+            }
+          },
+          "required": [
+            "can_fold",
+            "can_check",
+            "call_amount",
+            "can_raise",
+            "min_raise_to",
+            "max_raise_to"
+          ],
+          "title": "LegalActions",
+          "type": "object"
+        },
+        "LoggedAction": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "title": "Amount",
+              "type": "integer"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "action",
+            "amount"
+          ],
+          "title": "LoggedAction",
+          "type": "object"
+        },
+        "MatchLogEntry": {
+          "additionalProperties": true,
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "string"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Amount"
+            },
+            "bot_id": {
+              "title": "Bot Id",
+              "type": "string"
+            },
+            "hand_num": {
+              "title": "Hand Num",
+              "type": "integer"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hand_num",
+            "seat",
+            "bot_id",
+            "action"
+          ],
+          "title": "MatchLogEntry",
+          "type": "object"
+        },
+        "MatchRef": {
+          "additionalProperties": true,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "seats": {
+              "items": {
+                "$ref": "#/$defs/SeatInfo"
+              },
+              "title": "Seats",
+              "type": "array"
+            },
+            "status": {
+              "default": "started",
+              "enum": [
+                "started",
+                "finished",
+                "aborted"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "your_seat": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "absent for spectators",
+              "title": "Your Seat"
+            }
+          },
+          "required": [
+            "id",
+            "format",
+            "seats"
+          ],
+          "title": "MatchRef",
+          "type": "object"
+        },
+        "PublicPlayer": {
+          "additionalProperties": true,
+          "properties": {
+            "bet_this_street": {
+              "title": "Bet This Street",
+              "type": "integer"
+            },
+            "bot_id": {
+              "title": "Bot Id",
+              "type": "string"
+            },
+            "hole_cards": {
+              "default": null,
+              "title": "Hole Cards",
+              "type": "null"
+            },
+            "is_all_in": {
+              "title": "Is All In",
+              "type": "boolean"
+            },
+            "is_folded": {
+              "title": "Is Folded",
+              "type": "boolean"
+            },
+            "seat": {
+              "title": "Seat",
+              "type": "integer"
+            },
+            "stack": {
+              "title": "Stack",
+              "type": "integer"
+            },
+            "state": {
+              "enum": [
+                "active",
+                "folded",
+                "all_in",
+                "busted"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          "required": [
+            "seat",
+            "bot_id",
+            "stack",
+            "state",
+            "is_folded",
+            "is_all_in",
+            "bet_this_street"
+          ],
+          "title": "PublicPlayer",
+          "type": "object"
+        },
+        "SeatInfo": {
+          "additionalProperties": true,
+          "properties": {
+            "bot": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "seat": {
+              "maximum": 8,
+              "minimum": 0,
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "bot"
+          ],
+          "title": "SeatInfo",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "First message on every (re)connection: the match and where it stands.",
+      "properties": {
+        "bank_s": {
+          "title": "Bank S",
+          "type": "number"
+        },
+        "hand": {
+          "description": "messages of the hand in progress so far, from hand_start",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Hand",
+          "type": "array"
+        },
+        "hands_played": {
+          "title": "Hands Played",
+          "type": "integer"
+        },
+        "match": {
+          "$ref": "#/$defs/MatchRef"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decide"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stacks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Stacks",
+          "type": "array"
+        },
+        "type": {
+          "const": "match_full",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "match",
+        "hands_played",
+        "stacks",
+        "bank_s"
+      ],
+      "title": "MatchFull",
+      "type": "object"
+    },
+    "MatchStartEvent": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        },
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        },
+        "MatchRef": {
+          "additionalProperties": true,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "seats": {
+              "items": {
+                "$ref": "#/$defs/SeatInfo"
+              },
+              "title": "Seats",
+              "type": "array"
+            },
+            "status": {
+              "default": "started",
+              "enum": [
+                "started",
+                "finished",
+                "aborted"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "your_seat": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "absent for spectators",
+              "title": "Your Seat"
+            }
+          },
+          "required": [
+            "id",
+            "format",
+            "seats"
+          ],
+          "title": "MatchRef",
+          "type": "object"
+        },
+        "SeatInfo": {
+          "additionalProperties": true,
+          "properties": {
+            "bot": {
+              "$ref": "#/$defs/BotRef"
+            },
+            "seat": {
+              "maximum": 8,
+              "minimum": 0,
+              "title": "Seat",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seat",
+            "bot"
+          ],
+          "title": "SeatInfo",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/MatchRef"
+        },
+        "type": {
+          "const": "match_start",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "match"
+      ],
+      "title": "MatchStartEvent",
+      "type": "object"
+    },
+    "OnlineBots": {
+      "$defs": {
+        "BotRef": {
+          "additionalProperties": true,
+          "description": "A bot's stable public identity.",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "rating": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Rating"
+            },
+            "title": {
+              "const": "BOT",
+              "default": "BOT",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "BotRef",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "GET /api/bot/online",
+      "properties": {
+        "bots": {
+          "items": {
+            "$ref": "#/$defs/BotRef"
+          },
+          "title": "Bots",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bots"
+      ],
+      "title": "OnlineBots",
+      "type": "object"
+    },
+    "SeatStatus": {
+      "additionalProperties": true,
+      "properties": {
+        "bot": {
+          "title": "Bot",
+          "type": "string"
+        },
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "seat": {
+          "title": "Seat",
+          "type": "integer"
+        },
+        "type": {
+          "const": "seat_status",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "seat",
+        "bot",
+        "connected"
+      ],
+      "title": "SeatStatus",
+      "type": "object"
+    },
+    "Seek": {
+      "$defs": {
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/Format"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "rated": {
+          "default": false,
+          "title": "Rated",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "open",
+          "enum": [
+            "open",
+            "matched",
+            "canceled",
+            "expired"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "format"
+      ],
+      "title": "Seek",
+      "type": "object"
+    },
+    "SeekExpiredEvent": {
+      "$defs": {
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        },
+        "Seek": {
+          "additionalProperties": true,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/Format"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "rated": {
+              "default": false,
+              "title": "Rated",
+              "type": "boolean"
+            },
+            "status": {
+              "default": "open",
+              "enum": [
+                "open",
+                "matched",
+                "canceled",
+                "expired"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "format"
+          ],
+          "title": "Seek",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "seek": {
+          "$ref": "#/$defs/Seek"
+        },
+        "type": {
+          "const": "seek_expired",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "seek"
+      ],
+      "title": "SeekExpiredEvent",
+      "type": "object"
+    },
+    "SeekRequest": {
+      "$defs": {
+        "Clock": {
+          "additionalProperties": true,
+          "description": "Time control. Each decision gets decision_s; past that, time comes out\nof a bank of bank_s for the whole match. When both run out the seat\nchecks if it can, otherwise folds.",
+          "properties": {
+            "bank_s": {
+              "default": 300,
+              "minimum": 0,
+              "title": "Bank S",
+              "type": "number"
+            },
+            "decision_s": {
+              "default": 30,
+              "exclusiveMinimum": 0,
+              "title": "Decision S",
+              "type": "number"
+            }
+          },
+          "title": "Clock",
+          "type": "object"
+        },
+        "Format": {
+          "additionalProperties": true,
+          "description": "What kind of match: table size, length, blinds, stacks, clock.",
+          "properties": {
+            "big_blind": {
+              "default": 100,
+              "exclusiveMinimum": 0,
+              "title": "Big Blind",
+              "type": "integer"
+            },
+            "clock": {
+              "$ref": "#/$defs/Clock"
+            },
+            "hands": {
+              "default": 100,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Hands",
+              "type": "integer"
+            },
+            "reset_stacks": {
+              "default": false,
+              "description": "every hand starts from `stack` (no busting)",
+              "title": "Reset Stacks",
+              "type": "boolean"
+            },
+            "seats": {
+              "default": 2,
+              "maximum": 9,
+              "minimum": 2,
+              "title": "Seats",
+              "type": "integer"
+            },
+            "small_blind": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "title": "Small Blind",
+              "type": "integer"
+            },
+            "stack": {
+              "default": 10000,
+              "exclusiveMinimum": 0,
+              "title": "Stack",
+              "type": "integer"
+            }
+          },
+          "title": "Format",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "description": "POST /api/seek",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/Format"
+        },
+        "rated": {
+          "default": false,
+          "title": "Rated",
+          "type": "boolean"
+        }
+      },
+      "title": "SeekRequest",
+      "type": "object"
+    },
+    "StreetStart": {
+      "additionalProperties": true,
+      "properties": {
+        "board": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Board",
+          "type": "array"
+        },
+        "hand_num": {
+          "title": "Hand Num",
+          "type": "integer"
+        },
+        "street": {
+          "enum": [
+            "preflop",
+            "flop",
+            "turn",
+            "river"
+          ],
+          "title": "Street",
+          "type": "string"
+        },
+        "type": {
+          "const": "street",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "hand_num",
+        "street",
+        "board"
+      ],
+      "title": "StreetStart",
+      "type": "object"
+    }
+  },
+  "spec": "docs/bot-api.md",
+  "title": "Poker arena bot API"
+}
