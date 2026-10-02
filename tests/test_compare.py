@@ -1,10 +1,12 @@
 """Duplicate comparisons (arena/compare.py), reset-stack matches and the CLI."""
 import asyncio
+import json
 import textwrap
 
 import pytest
 
 from arena import compare as cmp
+from arena.cli.main import main
 from arena.match import MatchConfig, MatchRunner
 from arena.runs import Run, RunWriter
 from arena.seats import CallbackSeat
@@ -131,3 +133,28 @@ def test_better_bot_wins_against_a_field(bots):
     s = info["stats"]
     assert info["mode"] == "field" and len(info["matches"]) == 4
     assert s["diff"]["se"] < s["naive"]["se"]
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def test_cli_compare_and_compares(bots, capsys):
+    code = main(["compare", bots["pairs"], bots["caller"], "--hands", "40", "--seed", "1", "--id", "c1"])
+    out = capsys.readouterr().out
+    assert code == 0 and "compare c1 · head-to-head · pairs vs caller" in out
+    assert "duplicate (2 rotations) · 40 deals" in out and "duplicate: interval" in out
+    main(["compares"])
+    assert "c1" in capsys.readouterr().out
+    main(["compares", "c1", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert data["a"]["id"] == "pairs" and data["matches"] == ["c1-h2h-r0", "c1-h2h-r1"]
+    code = main(["compares", "nope"])
+    assert code == 2
+
+
+def test_cli_compare_plain(bots, capsys):
+    code = main(["compare", bots["pairs"], bots["caller"], "--hands", "20", "--no-duplicate",
+                 "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0 and not data["duplicate"] and len(data["matches"]) == 1

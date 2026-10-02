@@ -23,6 +23,8 @@ full structure.
   arena sweep BOT SPOT --vary ...      ... and where does its answer flip?
   arena probes [ID]                    stored probes, sweeps and test runs
   arena test BOT [--suite NAME]        spots with expected answers; exit 1 on failure
+  arena compare A B [--field BOT...]   is A better than B? duplicate deals + confidence interval
+  arena compares [ID]                  stored comparisons
 
 Run `arena <command> -h` for options. Spot notation is described in
 arena/spot.py and `arena spot -h`.
@@ -33,7 +35,7 @@ import json
 import random
 import sys
 
-from arena.cli import index_cmds, match_cmds, probe_cmds, render, test_cmds
+from arena.cli import compare_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds
 from arena.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
 from arena.cli.spotargs import spot_from_args as _spot_from_args
 from arena.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
@@ -319,6 +321,7 @@ def build_parser() -> argparse.ArgumentParser:
     index_cmds.add_parsers(sub)
     probe_cmds.add_parsers(sub)
     test_cmds.add_parser(sub)
+    compare_cmds.add_parsers(sub)
     return ap
 
 
@@ -327,7 +330,7 @@ def main(argv=None) -> int:
     try:
         return args.fn(args) or 0
     except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError,
-            probe_cmds.pr.ProbeError, IllegalActionError,
+            probe_cmds.pr.ProbeError, compare_cmds.cmp.CompareError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
         if getattr(args, "json", False):
             print(json.dumps({"error": str(e)}))
