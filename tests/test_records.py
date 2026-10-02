@@ -13,8 +13,10 @@ pytest.importorskip("fastapi")
 from poker_harness import index as idx  # noqa: E402
 from poker_harness.arena_records import ArenaRecord  # noqa: E402
 from poker_harness.cli import index_cmds as ic  # noqa: E402
+from poker_harness.cli.main import main  # noqa: E402
 from poker_harness.replay import verify_run  # noqa: E402
 from poker_harness.runs import Run, list_runs  # noqa: E402
+from poker_harness.spot import Spot  # noqa: E402
 from test_mock import FAST, Server  # noqa: E402
 
 # calls through the flop; on the turn and river folds to bets in even
@@ -169,3 +171,67 @@ def test_god_view_wins_when_both_records_exist(played, tmp_path):
     assert [r.match_id for r in list_runs(tmp_path / "runs")] == [f"arena/{mid}"]
     shutil.copytree(god.dir, tmp_path / "runs" / mid)
     assert [r.match_id for r in list_runs(tmp_path / "runs")] == [mid]
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def cli(played, monkeypatch, capsys, tmp_path):
+    tmp, mid, own, god = played
+    monkeypatch.setenv("ARENA_RUNS", str(tmp / "runs"))
+    monkeypatch.setenv("ARENA_SPOTS", str(tmp_path / "spots"))
+
+    def run(*argv):
+        code = main(list(argv))
+        out = capsys.readouterr()
+        return code, out.out, out.err
+    return run
+
+
+def test_cli_match_commands(played, cli):
+    tmp, mid, own, god = played
+    ref = f"arena/{mid}"
+    code, out, _ = cli("match", "list")
+    assert ref in out
+    code, out, _ = cli("match", "show", ref)
+    assert code == 0 and "mybot" in out
+    code, out, _ = cli("match", "verify", ref)
+    assert "all match" in out
+    ends = {h: e for h, [e] in by_hand(own, "hand_end").items()}
+    folded = next(h for h, e in ends.items() if not e["showdown"])
+    code, out, _ = cli("match", "hand", f"{ref}:{folded}", "--no-equity")
+    assert "mybot's view" in out and "????" in out and "runout" not in out
+    shown = next(h for h, e in ends.items() if e["showdown"])
+    code, out, _ = cli("match", "hand", f"{ref}:{shown}", "--no-equity")
+    assert "????" not in out
+
+
+def test_cli_spot_export_keeps_unknown_cards_random(played, cli, tmp_path):
+    tmp, mid, own, god = played
+    ends = {h: e for h, [e] in by_hand(own, "hand_end").items()}
+    folded = next(h for h, e in ends.items() if not e["showdown"])
+    code, out, err = cli("match", "hand", f"arena/{mid}:{folded}", "--at", "0", "--save", "from-arena")
+    assert code == 0
+    spot = Spot.load(tmp_path / "spots" / "from-arena.yaml")
+    assert set(spot.cards) == {own.my_seat}                     # opponents' cards stay random
+    dealt = ends[folded]["board"]                               # the board everyone saw is kept
+    assert spot.board == dealt + [None] * (5 - len(dealt))
+
+
+def test_cli_stats_brief_and_probe(played, cli):
+    tmp, mid, own, god = played
+    code, out, _ = cli("stats", "mybot")
+    assert code == 0 and "40 hands" in out
+    code, out, _ = cli("brief", "mybot")
+    assert "arena records (your bot's own view)" in out
+    code, out, err = cli("decisions", "--bot", "mybot", "--equity-above", "0")
+    assert "own view" in err
+    hand = next(d["hand_num"] for d in own.decisions("mybot"))
+    code, out, err = cli("probe", "--from", f"arena/{mid}:{hand}", "-n", "1", "--warm")
+    assert code == 0 and "in the match:" in out and "warmed with" in out
+    acts = [e for e in own.hand_events(hand) if e["type"] == "action"]
+    theirs = next(i for i, e in enumerate(acts) if e["bot_id"] != "mybot")
+    code, out, err = cli("probe", "--from", f"arena/{mid}:{hand}", "--at", str(theirs))
+    assert code == 2 and "only has mybot's decisions; try --at" in err

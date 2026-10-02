@@ -169,8 +169,14 @@ def bot_brief(conn, f) -> dict:
     if stats["ci95"]:
         lo, hi = stats["ci95"]
         verdict = "winning" if lo > 0 else "losing" if hi < 0 else "not distinguishable from break-even"
+    w = ic.Where()
+    ic._common_filters(w, f, "hp")
+    own = conn.execute(
+        f"SELECT count(DISTINCT hp.match_id) FROM hand_players hp JOIN matches m "
+        f"ON m.match_id = hp.match_id {w.sql()} {'AND' if w.parts else 'WHERE'} m.perspective = 'own'",
+        w.params).fetchone()[0]
     return {
-        "kind": "bot", "bot": f.bot, "stats": stats,
+        "kind": "bot", "bot": f.bot, "stats": stats, "own_view_matches": own,
         "header": f"brief: {f.bot} (version {', '.join(v or '?' for v in versions)}) · "
                   f"{stats['hands']:,} hands in {scope}",
         "result": f"{stats['bb_per_100']:+.1f} bb/100" + (f" ({_ci(stats)}): {verdict}" if verdict else ""),
@@ -214,6 +220,9 @@ def render(b: dict, max_lines: int) -> list:
     lines = [b["header"]]
     if b["kind"] == "bot":
         lines.append(f"result  {b['result']}")
+        if b.get("own_view_matches"):
+            lines.append(f"note    {b['own_view_matches']} match(es) are arena records (your bot's own "
+                         "view): hindsight equity only where every opponent showed down")
         lines.append(f"style   {b['style']}")
         if b["leaks"]:
             lines.append("leaks (most costly first):")

@@ -235,7 +235,7 @@ def cmd_hands(args):
     bw = max(len(r["bot_id"]) for r in rows)
     for r in rows:
         sd = "showdown" if r["showdown"] else (f"folded {r['fold_street']}" if r["fold_street"] else "no showdown")
-        print(f"{_ref(r):<{rw}}  {r['pos'] or '-':<5} {r['bot_id']:<{bw}}  {r['cards']}  "
+        print(f"{_ref(r):<{rw}}  {r['pos'] or '-':<5} {r['bot_id']:<{bw}}  {r['cards'] or '????'}  "
               f"{r['board'] or '-':<10}  pot {_chips(r['pot']):>7}  {sd:<14} {r['delta']:>+8,}")
     print(f"({len(rows)} shown; open one with: arena match hand REF)")
 
@@ -279,6 +279,10 @@ def cmd_decisions(args):
         if missing:
             print(f"note: {missing} match(es) were indexed without equity; "
                   "run `arena index --rebuild` to include them", file=sys.stderr)
+        own = conn.execute("SELECT count(*) FROM matches WHERE perspective = 'own'").fetchone()[0]
+        if own:
+            print(f"note: {own} arena match(es) are from your bot's own view; equity is only "
+                  "known where every opponent showed down", file=sys.stderr)
     order = {"time": "d.match_id, d.decision_id", "equity": "d.equity ASC",
              "pot": "d.pot DESC"}[args.sort]
     rows = conn.execute(f"SELECT d.* FROM decisions d {w.sql()} ORDER BY {order} LIMIT ?",

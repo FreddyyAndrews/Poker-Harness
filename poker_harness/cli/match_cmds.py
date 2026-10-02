@@ -207,8 +207,11 @@ def cmd_hand(args):
 
     decisions = _hand_decisions(run, names, args.hand)
     shown = actions if upto is None else actions[:upto]
+    hs = next(e for e in events if e["type"] == "hand_start")
     view = render.god_view(spot.with_actions_from(eng), eng, state,
-                           with_equity=not args.no_equity, names=names)
+                           with_equity=not args.no_equity, names=names,
+                           known_seats=set(hs["known_seats"]) if "known_seats" in hs else None,
+                           known_board=hs.get("known_board", 5))
     view["rigged"] = False      # cards are fixed only because this is a replay
     view["seed"]   = run.meta["config"]["seed"]
     view["decisions"] = [{**decisions.get(ev.get("decision_id"), {}),
@@ -219,6 +222,8 @@ def cmd_hand(args):
         return
 
     title = f"match {args.id} hand {args.hand}" + (f" @{upto}" if upto is not None else "")
+    if run.meta.get("perspective") == "own":
+        title += f" · {run.meta['me']}'s view (?? = not shown)"
     out = [render.god_view_text(view, title=title)]
     if shown:
         out.append("decisions:")

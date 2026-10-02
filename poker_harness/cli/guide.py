@@ -60,7 +60,7 @@ CONVENTIONS
   Files     runs/                matches (god view) and runs/index.sqlite
             runs/probes/         probes, sweeps, test runs
             runs/compares/       comparisons
-            runs/arena/          arena matches from your bot's own view
+            runs/arena/          arena matches from your bot's own view (id arena/<id>)
             spots/               the spot library (spots/suites/NAME/ = test suites)
             .arena/hands/        hands being stepped through
   Env       ARENA_RUNS, ARENA_SPOTS, ARENA_HOME move those; ARENA_TOKEN = arena token
@@ -101,9 +101,15 @@ PLAYING ON THE ARENA
                                         matchmaking, seeks)
   arena connect --check                 test the token
   arena connect                         play until Ctrl-C (once: finish; twice: leave)
-  Production shows your bot only its own cards and showdowns; your records
-  of arena matches are in runs/arena/. The protocol is docs/bot-api.md in
-  the Poker-Harness repo.
+  Production shows your bot only its own cards and showdowns. The bridge
+  records each arena match in runs/arena/<id>/; every tool reads it as
+  arena/<id>:
+    arena match list | show arena/<id> | hand arena/<id>:N
+    arena stats BOT / arena brief BOT    (arena records are indexed too)
+    arena probe --from arena/<id>:N --warm
+  Unshown cards are ????, hindsight equity is only known where every
+  opponent showed down, and only your own decisions can be probed.
+  The protocol is docs/bot-api.md in the Poker-Harness repo.
 """,
 }
 

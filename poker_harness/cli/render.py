@@ -6,10 +6,13 @@ from poker_harness.spot import Spot
 PREFLOP_EQUITY_ITERS = 5_000
 
 
-def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = None) -> dict:
+def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = None,
+             known_seats=None, known_board: int = 5) -> dict:
     """Everything about the position, including every hole card and the
     undealt board. `spot` should already include all actions applied.
-    `names` optionally gives a bot id per seat."""
+    `names` optionally gives a bot id per seat. For an arena record,
+    known_seats / known_board say which cards are real: the others are
+    shown as ?? and left out of equity."""
     positions = eng.positions()
     complete  = state["type"] == "hand_complete"
     dealt     = [str(c) for c in eng.community_cards]
@@ -22,7 +25,8 @@ def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = Non
             "stack":  p.stack,
             "bet":    p.bet_this_street,
             "state":  p.state,
-            "cards":  "".join(str(c) for c in p.hole_cards) or None,
+            "cards":  ("".join(str(c) for c in p.hole_cards) or None)
+                      if known_seats is None or p.seat in known_seats or not p.hole_cards else "????",
             "start_stack": spot.stacks[p.seat],
         })
         if names:
@@ -30,7 +34,8 @@ def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = Non
 
     eq = None
     contenders = [s for s in seats if s["state"] in ("active", "all_in")]
-    if with_equity and not complete and len(contenders) >= 2:
+    if with_equity and not complete and len(contenders) >= 2 \
+            and all(s["cards"] != "????" for s in contenders):
         r  = equity([s["cards"] for s in contenders], board="".join(dealt),
                     iters=PREFLOP_EQUITY_ITERS, seed=0)
         eq = {"method": r["method"], "samples": r["samples"]}
@@ -43,7 +48,7 @@ def god_view(spot: Spot, eng, state, with_equity: bool = True, names: list = Non
         "street":      state["street"],
         "pot":         state["pot"],
         "board":       dealt,
-        "runout":      eng.board_plan[len(dealt):],
+        "runout":      eng.board_plan[len(dealt):known_board] if known_board > len(dealt) else [],
         "rigged":      eng.rigged,
         "seed":        spot.seed,
         "seats":       seats,
