@@ -1,6 +1,6 @@
 import pytest
 
-from arena.equity import equity
+from poker_harness.equity import equity
 
 
 def eqs(r):

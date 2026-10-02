@@ -5,9 +5,9 @@ import textwrap
 
 import pytest
 
-from arena.cli.main import main
-from arena.match import MatchConfig, MatchRunner, bot_fingerprint, make_bot_seats
-from arena.runs import RunWriter
+from poker_harness.cli.main import main
+from poker_harness.match import MatchConfig, MatchRunner, bot_fingerprint, make_bot_seats
+from poker_harness.runs import RunWriter
 
 BOTS = {
     # bets the pot whenever it can open the betting, otherwise calls

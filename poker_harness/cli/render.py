@@ -1,7 +1,7 @@
 """Turn an engine position into god-view text or JSON for the CLI."""
 
-from arena.equity import equity
-from arena.spot import Spot
+from poker_harness.equity import equity
+from poker_harness.spot import Spot
 
 PREFLOP_EQUITY_ITERS = 5_000
 

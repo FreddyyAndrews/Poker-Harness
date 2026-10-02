@@ -1,4 +1,4 @@
-from arena.engine.game import (
+from poker_harness.engine.game import (
     ACTIONS,
     BIG_BLIND,
     MAX_PLAYERS,

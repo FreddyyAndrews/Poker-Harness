@@ -30,8 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from arena.expect import ExpectError, validate as validate_expect
-from arena.engine.game import (
+from poker_harness.expect import ExpectError, validate as validate_expect
+from poker_harness.engine.game import (
     BIG_BLIND, MAX_PLAYERS, SMALL_BLIND, STARTING_STACK, STREETS,
     PokerEngine, next_button, seat_positions,
 )
@@ -95,7 +95,7 @@ class Spot:
     name: Optional[str] = None
     description: Optional[str] = None
     tags: list = field(default_factory=list)
-    expect: Optional[dict] = None    # expected answers, see arena/expect.py
+    expect: Optional[dict] = None    # expected answers, see poker_harness/expect.py
 
     def __post_init__(self):
         if not self.stacks:

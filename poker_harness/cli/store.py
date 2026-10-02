@@ -9,7 +9,7 @@ import os
 import time
 from pathlib import Path
 
-from arena.spot import Spot, SpotError
+from poker_harness.spot import Spot, SpotError
 
 SPOT_SUFFIXES = (".yaml", ".yml", ".json")
 

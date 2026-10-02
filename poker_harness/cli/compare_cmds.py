@@ -4,8 +4,8 @@ import asyncio
 import json
 import sys
 
-from arena import compare as cmp
-from arena.spot import parse_blinds
+from poker_harness import compare as cmp
+from poker_harness.spot import parse_blinds
 
 DEFAULT_IMAGE = "poker-harness-sandbox:latest"
 
@@ -95,7 +95,7 @@ def add_parsers(sub):
                "--field bots/aggressor/bot.py\n\n"
                "Every hand starts from the starting stacks. With duplicate (the default)\n"
                "each deal is replayed with the seats rotated so every player gets every\n"
-               "seat's cards; most of the card luck cancels. See arena/compare.py.")
+               "seat's cards; most of the card luck cancels. See poker_harness/compare.py.")
     p.add_argument("a", help="bot A (e.g. the new version)")
     p.add_argument("b", help="bot B (e.g. the current version)")
     p.add_argument("--field", action="append", default=[], metavar="BOT",

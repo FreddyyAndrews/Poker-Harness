@@ -1,7 +1,7 @@
 """Spot options shared by commands that take a spot (spot, hand, probe, sweep)."""
 
-from arena.cli.store import find_spot
-from arena.spot import Spot, SpotError
+from poker_harness.cli.store import find_spot
+from poker_harness.spot import Spot, SpotError
 
 SPOT_HELP = """\
 spot notation:

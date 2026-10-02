@@ -5,10 +5,10 @@ import json
 import sys
 from pathlib import Path
 
-from arena import expect as ex
-from arena import probe as pr
-from arena.cli.store import find_spot, list_spots, spot_ref, spots_dir
-from arena.spot import Spot, SpotError
+from poker_harness import expect as ex
+from poker_harness import probe as pr
+from poker_harness.cli.store import find_spot, list_spots, spot_ref, spots_dir
+from poker_harness.spot import Spot, SpotError
 
 DEFAULT_IMAGE = "poker-harness-sandbox:latest"
 

@@ -40,12 +40,12 @@ from typing import Optional
 
 import eval7
 
-from arena.index import action_kind
-from arena.match import bot_fingerprint
-from arena.replay import hand_to_spot, replay_hand
-from arena.runs import Run, runs_dir
-from arena.seats import SubprocessBotSeat
-from arena.spot import Spot, SpotError, resolve_seat
+from poker_harness.index import action_kind
+from poker_harness.match import bot_fingerprint
+from poker_harness.replay import hand_to_spot, replay_hand
+from poker_harness.runs import Run, runs_dir
+from poker_harness.seats import SubprocessBotSeat
+from poker_harness.spot import Spot, SpotError, resolve_seat
 
 KINDS = ["fold", "check", "call", "bet", "raise"]
 

@@ -44,9 +44,9 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from arena.engine.game import PokerEngine
-from arena.equity import equity as compute_equity
-from arena.runs import Run, list_runs, runs_dir
+from poker_harness.engine.game import PokerEngine
+from poker_harness.equity import equity as compute_equity
+from poker_harness.runs import Run, list_runs, runs_dir
 
 INDEX_VERSION = 1
 

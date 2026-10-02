@@ -1,12 +1,12 @@
-"""Expectations (arena/expect.py) and `arena test`."""
+"""Expectations (poker_harness/expect.py) and `arena test`."""
 import json
 import textwrap
 
 import pytest
 
-from arena import expect as ex
-from arena.cli.main import main
-from arena.spot import Spot, SpotError
+from poker_harness import expect as ex
+from poker_harness.cli.main import main
+from poker_harness.spot import Spot, SpotError
 
 
 def sample(kind, to=None, all_in=False, error=None):

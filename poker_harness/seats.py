@@ -15,7 +15,7 @@ possible and fold otherwise, and `error` says what went wrong.
 
 Seat types:
   SubprocessBotSeat  a bot.py in its own process (or Docker container),
-                     talking protocol v2 to arena/runner/bot_runner.py
+                     talking protocol v2 to poker_harness/runner/bot_runner.py
   ScriptedSeat       plays a fixed list of actions (tests, spots)
   CallbackSeat       asks a function (the CLI, and human seats later)
 """
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from arena.runner.package import prepare_bot_dir
+from poker_harness.runner.package import prepare_bot_dir
 
 RUNNER_PATH   = Path(__file__).parent / "runner" / "bot_runner.py"
 # Temp copies of bots for Docker mounts. Under $HOME because Docker VMs like
@@ -161,7 +161,7 @@ class _ProtocolError(Exception):
 class SubprocessBotSeat(Seat):
     """
     Runs a bot (bot.py file, directory with bot.py + data/, or .zip) in its
-    own process via arena/runner/bot_runner.py, or in a Docker container
+    own process via poker_harness/runner/bot_runner.py, or in a Docker container
     when `docker_image` is set.
 
     - The bot's stderr (including its print() output) is read continuously,

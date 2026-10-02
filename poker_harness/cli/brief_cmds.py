@@ -21,10 +21,10 @@ Leak heuristics (shown only with enough data to mean something):
 import json
 from types import SimpleNamespace
 
-from arena import compare as cmp
-from arena import probe as pr
-from arena.cli import index_cmds as ic
-from arena.runs import Run
+from poker_harness import compare as cmp
+from poker_harness import probe as pr
+from poker_harness.cli import index_cmds as ic
+from poker_harness.runs import Run
 
 
 class BriefError(ValueError):

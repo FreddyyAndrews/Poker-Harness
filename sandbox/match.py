@@ -1,5 +1,5 @@
 """
-Upstream-compatible wrapper around arena.match.MatchRunner.
+Upstream-compatible wrapper around poker_harness.match.MatchRunner.
 
 - run_match(match_id, bot_paths, ...) keeps the old signature and result
   shape (including per-hand results under "hands") for demo.py. Matches
@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from arena.match import MatchConfig, MatchRunner, make_bot_seats
-from arena.runs import RunWriter
+from poker_harness.match import MatchConfig, MatchRunner, make_bot_seats
+from poker_harness.runs import RunWriter
 
 SANDBOX_IMAGE  = os.environ.get("SANDBOX_IMAGE", "poker-harness-sandbox:latest")
 USE_DOCKER     = os.environ.get("USE_DOCKER", "false").lower() == "true"
@@ -48,7 +48,7 @@ def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None, store=
 
 
 if __name__ == "__main__":
-    from arena.cli.main import main
+    from poker_harness.cli.main import main
 
     argv = ["match", "run"]
     args = sys.argv[1:]

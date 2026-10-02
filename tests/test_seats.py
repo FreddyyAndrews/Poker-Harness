@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from arena.seats import (
+from poker_harness.seats import (
     CallbackSeat, Decision, ScriptedSeat, SubprocessBotSeat, fallback_action,
 )
 

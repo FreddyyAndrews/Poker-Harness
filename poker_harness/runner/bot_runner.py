@@ -1,7 +1,7 @@
 """
 Bot runner, protocol v2. Runs one bot in its own process, either locally
 or inside the sandbox container. Standard library only: this file is
-copied into the Docker image without the rest of the arena package.
+copied into the Docker image without the rest of the poker_harness package.
 
 Protocol: newline-delimited JSON over the process's original stdin and
 stdout. Before the bot is imported, the runner moves the protocol to

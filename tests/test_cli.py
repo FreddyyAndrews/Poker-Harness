@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from arena.cli.main import main
+from poker_harness.cli.main import main
 
 SPOT = ["--players", "6", "--button", "3", "--cards", "BTN=AsKh BB=QdQc",
         "--board", "Kd7c2s|9h|", "--actions", "pre: BTN r250, BB r900, BTN c; flop: BB r600",

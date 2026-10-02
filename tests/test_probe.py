@@ -5,11 +5,11 @@ import textwrap
 
 import pytest
 
-from arena import probe as pr
-from arena.cli.main import main
-from arena.match import MatchConfig, MatchRunner, make_bot_seats
-from arena.runs import Run, RunWriter
-from arena.spot import Spot
+from poker_harness import probe as pr
+from poker_harness.cli.main import main
+from poker_harness.match import MatchConfig, MatchRunner, make_bot_seats
+from poker_harness.runs import Run, RunWriter
+from poker_harness.spot import Spot
 
 # folds to anything over 500, raises to pot when it can check, else calls
 THRESHOLD = """

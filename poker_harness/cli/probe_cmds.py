@@ -6,10 +6,10 @@ import sys
 from collections import Counter
 from types import SimpleNamespace
 
-from arena import probe as pr
-from arena.cli.spotargs import SPOT_HELP, add_spot_options, spot_from_args
-from arena.replay import hand_to_spot
-from arena.runs import Run
+from poker_harness import probe as pr
+from poker_harness.cli.spotargs import SPOT_HELP, add_spot_options, spot_from_args
+from poker_harness.replay import hand_to_spot
+from poker_harness.runs import Run
 
 DEFAULT_IMAGE = "poker-harness-sandbox:latest"
 
@@ -138,7 +138,7 @@ def cmd_probes(args):
     if info["kind"] == "sweep":
         print(_sweep_text(info))
     elif info["kind"] == "test":
-        from arena.cli.test_cmds import test_text
+        from poker_harness.cli.test_cmds import test_text
         print(test_text(info))
     else:
         print("\n".join([f"probe {info['id']} · {info['bot']['path']} · {info['target']}",

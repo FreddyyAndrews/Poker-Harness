@@ -1,12 +1,12 @@
 # Fullhouse Hackathon — Bot Sandbox Container
 # One container per bot per match. Stateless, disposable.
 #
-# Build from the repo root (the runner lives in arena/runner/):
+# Build from the repo root (the runner lives in poker_harness/runner/):
 #   docker build -f sandbox/Dockerfile -t poker-harness-sandbox:latest .
 #   (or ./sandbox.sh build)
 #
 # Security properties enforced at runtime (see SubprocessBotSeat._command
-# in arena/seats.py):
+# in poker_harness/seats.py):
 #   --network none                       no internet access
 #   --memory 768m                        OOM-killed if exceeded
 #   --cpus 0.5                           half a core max
@@ -46,7 +46,7 @@ RUN apt-get update \
 RUN useradd -u 1000 -m botuser
 
 # Bot runner (protocol v2, stdlib only) at a fixed path
-COPY arena/runner/bot_runner.py /runner.py
+COPY poker_harness/runner/bot_runner.py /runner.py
 RUN chmod +r /runner.py
 
 # Bot code is mounted at runtime: -v /path/to/botdir:/bot:ro

@@ -6,12 +6,12 @@ import sqlite3
 
 import pytest
 
-from arena import index as idx
-from arena.cli.main import main
-from arena.equity import equity
-from arena.match import MatchConfig, MatchRunner, make_bot_seats
-from arena.runs import Run, RunWriter
-from arena.seats import CallbackSeat
+from poker_harness import index as idx
+from poker_harness.cli.main import main
+from poker_harness.equity import equity
+from poker_harness.match import MatchConfig, MatchRunner, make_bot_seats
+from poker_harness.runs import Run, RunWriter
+from poker_harness.seats import CallbackSeat
 
 
 def raiser(state):

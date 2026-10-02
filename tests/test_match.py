@@ -4,11 +4,11 @@ import json
 
 import pytest
 
-from arena.cli.main import main
-from arena.match import MatchConfig, MatchRunner, bot_ids_for_paths, make_bot_seats
-from arena.replay import hand_to_spot, replay_hand, verify_run
-from arena.runs import Run, RunWriter
-from arena.seats import CallbackSeat, ScriptedSeat
+from poker_harness.cli.main import main
+from poker_harness.match import MatchConfig, MatchRunner, bot_ids_for_paths, make_bot_seats
+from poker_harness.replay import hand_to_spot, replay_hand, verify_run
+from poker_harness.runs import Run, RunWriter
+from poker_harness.seats import CallbackSeat, ScriptedSeat
 
 
 def policy(kind):

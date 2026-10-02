@@ -5,7 +5,7 @@ import random
 import eval7
 import pytest
 
-from arena.engine.game import IllegalActionError, PokerEngine, next_button
+from poker_harness.engine.game import IllegalActionError, PokerEngine, next_button
 
 
 def make(stacks, dealer=0, **kw):

@@ -277,7 +277,7 @@ pass `--seed`, and recorded); the same seed deals the same cards. Options:
 
 Everything goes to `runs/<id>/` as it happens (`tail -f
 runs/<id>/events.jsonl` to follow a match). The event types and record
-fields are documented in [arena/runs.py](arena/runs.py). To look at a run:
+fields are documented in [poker_harness/runs.py](poker_harness/runs.py). To look at a run:
 
 ```bash
 arena match list
@@ -535,7 +535,7 @@ rules don't apply here, since bots may call LLMs and other tools; the
 validator will be retired or reduced to a sanity check (T8).
 
 The protocol between host and bot is newline-delimited JSON; see
-[arena/runner/bot_runner.py](arena/runner/bot_runner.py).
+[poker_harness/runner/bot_runner.py](poker_harness/runner/bot_runner.py).
 
 ### Demo UI (from upstream)
 
@@ -549,28 +549,28 @@ live log and hand replay. poker-arena's website replaces it (T8).
 ### Repo layout
 
 ```
-arena/engine/game.py  NLHE rules for one hand: fixed seats, legal_actions(), strict mode,
-                      rigged deals, side pots, events
-arena/spot.py         spots: notation parser, YAML/JSON files, replay into the engine
-arena/equity.py       showdown equity (exact / Monte Carlo, ranges)
-arena/cli/            the `arena` command
-arena/seats.py        Seat interface: bot processes/containers, scripted and callback seats
-arena/match.py        async MatchRunner: plays a match through seats, records everything
-arena/runs.py         run store (runs/<id>/): writer, reader, event schema
-arena/replay.py       rebuild/verify hands from events; any point in a hand -> spot
-arena/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
-arena/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
-arena/expect.py       expected answers for spots (used by arena test)
-arena/compare.py      duplicate comparisons: seat rotations, paired statistics
-arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
-arena/tournament.py   Swiss pairing and standings
-spots/                the spot library; spots/suites/ holds test suites
-sandbox/match.py      upstream-compatible wrapper around arena/match.py (used by demo.py)
-sandbox/validator.py  checks bot code before accepting it
-sandbox/Dockerfile    isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
-bots/                 reference bots: template, aggressor, mathematician, shark, ref_bot_2
-db/schema.sql         upstream's hosted-site schema (not used here)
-demo.py               Flask demo UI
+poker_harness/engine/game.py  NLHE rules for one hand: fixed seats, legal_actions(), strict mode,
+                              rigged deals, side pots, events
+poker_harness/spot.py         spots: notation parser, YAML/JSON files, replay into the engine
+poker_harness/equity.py       showdown equity (exact / Monte Carlo, ranges)
+poker_harness/cli/            the `arena` command
+poker_harness/seats.py        Seat interface: bot processes/containers, scripted and callback seats
+poker_harness/match.py        async MatchRunner: plays a match through seats, records everything
+poker_harness/runs.py         run store (runs/<id>/): writer, reader, event schema
+poker_harness/replay.py       rebuild/verify hands from events; any point in a hand -> spot
+poker_harness/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
+poker_harness/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
+poker_harness/expect.py       expected answers for spots (used by arena test)
+poker_harness/compare.py      duplicate comparisons: seat rotations, paired statistics
+poker_harness/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
+poker_harness/tournament.py   Swiss pairing and standings
+spots/                        the spot library; spots/suites/ holds test suites
+sandbox/match.py              upstream-compatible wrapper around poker_harness/match.py (used by demo.py)
+sandbox/validator.py          checks bot code before accepting it
+sandbox/Dockerfile            isolated bot container (no network, read-only, 768 MB, 0.5 CPU)
+bots/                         reference bots: template, aggressor, mathematician, shark, ref_bot_2
+db/schema.sql                 upstream's hosted-site schema (not used here)
+demo.py                       Flask demo UI
 ```
 
 ---

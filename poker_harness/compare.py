@@ -39,8 +39,8 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-from arena.match import MatchConfig, MatchRunner, bot_fingerprint, bot_ids_for_paths, make_bot_seats
-from arena.runs import RunWriter, runs_dir
+from poker_harness.match import MatchConfig, MatchRunner, bot_fingerprint, bot_ids_for_paths, make_bot_seats
+from poker_harness.runs import RunWriter, runs_dir
 
 
 class CompareError(ValueError):

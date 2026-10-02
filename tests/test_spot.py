@@ -3,8 +3,8 @@ import random
 
 import pytest
 
-from arena.engine.game import next_button, seat_positions
-from arena.spot import (
+from poker_harness.engine.game import next_button, seat_positions
+from poker_harness.spot import (
     Spot, SpotError, parse_actions, parse_board, parse_stacks,
 )
 

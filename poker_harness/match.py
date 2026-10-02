@@ -8,9 +8,9 @@ MatchRunner: plays a multi-hand match between 2-9 seats and records it.
 - Seats are fixed for the whole match; a seat with no chips sits out.
   The button moves to the next seat with chips each hand.
 - Every seat decides through the Seat interface, with the seat's own time
-  limit. Failed decisions check/fold (see arena/seats.py).
+  limit. Failed decisions check/fold (see poker_harness/seats.py).
 - With a RunWriter, everything is written to runs/<match_id>/ as it
-  happens (see arena/runs.py for the layout and event types). `on_event`
+  happens (see poker_harness/runs.py for the layout and event types). `on_event`
   receives every event too, for live viewers.
 - A match always has a seed (one is picked if not given), so its deals
   can be reproduced, and every hand can be replayed from its events.
@@ -28,10 +28,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-import arena
-from arena.engine.game import PokerEngine, next_button
-from arena.runs import RunWriter, make_event
-from arena.seats import Seat, SubprocessBotSeat
+import poker_harness
+from poker_harness.engine.game import PokerEngine, next_button
+from poker_harness.runs import RunWriter, make_event
+from poker_harness.seats import Seat, SubprocessBotSeat
 
 
 @dataclass
@@ -46,7 +46,7 @@ class MatchConfig:
     ranked: bool = True
     # Every hand starts from the starting stacks (chips won or lost are
     # tallied, not carried over), so hands are independent. Used for
-    # duplicate evaluation; see arena/compare.py.
+    # duplicate evaluation; see poker_harness/compare.py.
     reset_stacks: bool = False
 
     def to_dict(self) -> dict:
@@ -197,7 +197,7 @@ class MatchRunner:
             return
         meta = {
             "created": started, "status": status,
-            "arena_version": arena.__version__,
+            "harness_version": poker_harness.__version__,
             "config": self.config.to_dict(), "seats": self._seat_meta(),
             "labels": self.labels,
         }
@@ -215,7 +215,7 @@ class MatchRunner:
 
         self._write_meta("running", started)
         self._emit("match_start", config=self.config.to_dict(), seats=self._seat_meta(),
-                   arena_version=arena.__version__)
+                   harness_version=poker_harness.__version__)
 
         reason, error = "hands_complete", None
         try:

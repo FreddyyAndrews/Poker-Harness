@@ -7,14 +7,14 @@ import sys
 import time
 from collections import Counter
 
-from arena.cli import render
-from arena.cli.store import save_spot
-from arena.match import (
+from poker_harness.cli import render
+from poker_harness.cli.store import save_spot
+from poker_harness.match import (
     MatchConfig, MatchRunner, bot_ids_for_paths, make_bot_seats, new_match_id,
 )
-from arena.replay import hand_to_spot, verify_run
-from arena.runs import Run, RunWriter, check_id, list_runs, runs_dir
-from arena.spot import parse_blinds
+from poker_harness.replay import hand_to_spot, verify_run
+from poker_harness.runs import Run, RunWriter, check_id, list_runs, runs_dir
+from poker_harness.spot import parse_blinds
 
 DEFAULT_IMAGE = "poker-harness-sandbox:latest"
 

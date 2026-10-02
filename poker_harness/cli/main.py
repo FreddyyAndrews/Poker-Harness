@@ -28,7 +28,7 @@ full structure.
   arena brief BOT|MATCH                short summary for an agent's context: result, leaks, hands
 
 Run `arena <command> -h` for options. Spot notation is described in
-arena/spot.py and `arena spot -h`.
+poker_harness/spot.py and `arena spot -h`.
 """
 
 import argparse
@@ -36,13 +36,13 @@ import json
 import random
 import sys
 
-from arena.cli import brief_cmds, compare_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds
-from arena.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
-from arena.cli.spotargs import spot_from_args as _spot_from_args
-from arena.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
-from arena.engine.game import IllegalActionError
-from arena.equity import DEFAULT_ITERS, equity
-from arena.spot import Spot, SpotError, parse_action_token
+from poker_harness.cli import brief_cmds, compare_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds
+from poker_harness.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
+from poker_harness.cli.spotargs import spot_from_args as _spot_from_args
+from poker_harness.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
+from poker_harness.engine.game import IllegalActionError
+from poker_harness.equity import DEFAULT_ITERS, equity
+from poker_harness.spot import Spot, SpotError, parse_action_token
 
 
 

@@ -1,15 +1,15 @@
-"""Duplicate comparisons (arena/compare.py), reset-stack matches and the CLI."""
+"""Duplicate comparisons (poker_harness/compare.py), reset-stack matches and the CLI."""
 import asyncio
 import json
 import textwrap
 
 import pytest
 
-from arena import compare as cmp
-from arena.cli.main import main
-from arena.match import MatchConfig, MatchRunner
-from arena.runs import Run, RunWriter
-from arena.seats import CallbackSeat
+from poker_harness import compare as cmp
+from poker_harness.cli.main import main
+from poker_harness.match import MatchConfig, MatchRunner
+from poker_harness.runs import Run, RunWriter
+from poker_harness.seats import CallbackSeat
 
 CALLER = """
     def decide(state):

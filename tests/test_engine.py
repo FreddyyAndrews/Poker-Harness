@@ -1,5 +1,5 @@
 """Tests for the Fullhouse game engine."""
-from arena.engine.game import PokerEngine, STARTING_STACK, BIG_BLIND, SMALL_BLIND
+from poker_harness.engine.game import PokerEngine, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 
 
 def make_engine(n=6):

@@ -10,8 +10,8 @@ a spot for the CLI.
 
 from typing import Optional
 
-from arena.engine.game import PokerEngine
-from arena.spot import ActionSpec, Spot
+from poker_harness.engine.game import PokerEngine
+from poker_harness.spot import ActionSpec, Spot
 
 
 class ReplayError(Exception):

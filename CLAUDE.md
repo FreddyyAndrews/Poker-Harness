@@ -35,28 +35,28 @@ README.md for the architecture and the plan (T1-T8).
 
 ## Code notes
 
-- `arena/engine/game.py` is the poker rules for one hand. Keep the rules
+- `poker_harness/engine/game.py` is the poker rules for one hand. Keep the rules
   covered by the fuzzers in `tests/test_engine_seats_rigging.py`. Any engine
   change must keep chip conservation and "never ask a busted or all-in seat
   to act".
 - Seats are fixed for a whole match; a seat with no chips sits out.
-- `arena/spot.py` owns the spot notation. Spots are always built by
+- `poker_harness/spot.py` owns the spot notation. Spots are always built by
   replaying actions through the engine in strict mode; don't add a second
   way to construct mid-hand states.
 - To check poker behaviour quickly, use the CLI (`.venv/bin/arena spot ...`,
   `arena hand ...`, `arena equity ...`; `-h` on each). Example spots live in
   `spots/`.
-- `arena/runner/bot_runner.py` runs inside the sandbox container, so it must
+- `poker_harness/runner/bot_runner.py` runs inside the sandbox container, so it must
   stay standard-library only and must not import from `arena`.
 - Docker runs through Colima here (`colima start` if `docker` can't connect).
   Colima only shares `$HOME` with containers, so anything mounted into one
   must live under it. The Docker test in `tests/test_seats.py` skips if the
   `poker-harness-sandbox:latest` image isn't built (`./sandbox.sh build`).
-- Matches go through `arena/match.py` (MatchRunner) and are stored by
-  `arena/runs.py`; its docstring is the event/record schema, so keep it in
+- Matches go through `poker_harness/match.py` (MatchRunner) and are stored by
+  `poker_harness/runs.py`; its docstring is the event/record schema, so keep it in
   sync. Bump `SCHEMA_VERSION` for incompatible changes. Every hand must
   still replay exactly (`arena match verify`, `tests/test_match.py`).
-- `runs/index.sqlite` (arena/index.py) is derived from runs/ and can be
+- `runs/index.sqlite` (poker_harness/index.py) is derived from runs/ and can be
   deleted at any time. Bump `INDEX_VERSION` whenever its schema or stat
   definitions change (old indexes are then cleared and rebuilt). Stats
   tests use seats with fixed behaviour so every number is known exactly.
@@ -69,4 +69,4 @@ README.md for the architecture and the plan (T1-T8).
 - When changing a bot, run `arena test BOT --suite basics` (and any suite
   for that bot) before committing; exit code 1 means a spot failed.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
-  Keep them working, but put new functionality in `arena/`.
+  Keep them working, but put new functionality in `poker_harness/`.

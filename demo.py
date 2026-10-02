@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from flask import Flask, Response, jsonify, render_template_string
 from sandbox.match import run_match
-from arena.tournament import swiss_pairing, compute_standings, select_finalists
+from poker_harness.tournament import swiss_pairing, compute_standings, select_finalists
 
 app = Flask(__name__)
 

@@ -1,7 +1,7 @@
 """`arena index | stats | hands | decisions | sql`: queries across runs.
 
 Every query command first indexes any finished runs that aren't indexed
-yet (see arena/index.py), so results are always current.
+yet (see poker_harness/index.py), so results are always current.
 """
 
 import json
@@ -9,7 +9,7 @@ import math
 import statistics
 import sys
 
-from arena import index as idx
+from poker_harness import index as idx
 
 STREETS = ["preflop", "flop", "turn", "river"]
 
