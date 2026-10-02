@@ -305,7 +305,8 @@ Bots can be passed as a `.py` file, a directory containing `bot.py` (plus an
 optional `data/`), or a `.zip`. Every match has a seed (random if you don't
 pass `--seed`, and recorded); the same seed deals the same cards. Options:
 `--hands`, `--blinds 50/100`, `--stack`, `--timeout` (seconds per decision),
-`--id`, `--verbose`, `--json`, `--no-store`.
+`--id`, `--verbose`, `--json`, `--no-store`, and `--reset-stacks` (every
+hand starts from `--stack`, so nobody busts and every hand is played).
 (`python3 sandbox/match.py ...` still works and forwards here.)
 
 Everything goes to `runs/<id>/` as it happens (`tail -f
@@ -323,7 +324,10 @@ arena match verify ID        # replay every hand from the log and check the resu
 ### Query across matches
 
 Finished runs are indexed into `runs/index.sqlite` automatically the first
-time you query (`arena index --rebuild` to redo it). A bot is its id plus
+time you query (`arena index --rebuild` to redo it). Matches played by
+`arena compare` are left out of `stats`, `hands`, `decisions` and `brief`
+unless you pass `--with-compares` (they replay the same deals several
+times, which would swamp a bot's ordinary numbers). A bot is its id plus
 the version hash of its code, so results can be split by version. Every
 result line starts with a `MATCH:HAND` reference you can open with
 `arena match hand MATCH:HAND`.

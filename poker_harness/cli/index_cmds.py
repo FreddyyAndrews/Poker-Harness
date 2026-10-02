@@ -55,7 +55,13 @@ class Where:
 
 
 def _common_filters(w: Where, args, alias: str):
+    """Filters shared by the query commands. Matches played by arena compare
+    are left out unless --with-compares (or a specific --match) asks for
+    them: they replay the same deals several times with stacks reset, which
+    would swamp a bot's ordinary statistics."""
     a = alias
+    if not getattr(args, "with_compares", False) and not getattr(args, "match", None):
+        w.add(f"{a}.match_id NOT IN (SELECT match_id FROM matches WHERE compare_id IS NOT NULL)")
     if getattr(args, "bot", None):
         w.add(f"{a}.bot_id = ?", args.bot)
     if getattr(args, "version", None):
@@ -369,6 +375,8 @@ def _filters(p, with_bot=True):
     p.add_argument("--match", help="only this match")
     p.add_argument("--pos", help="position: BTN, SB, BB, UTG, HJ, CO, ...")
     p.add_argument("--vs", metavar="BOT", help="only hands where this bot was also dealt in")
+    p.add_argument("--with-compares", action="store_true",
+                   help="include matches played by arena compare (left out by default)")
     p.add_argument("--json", action="store_true")
 
 

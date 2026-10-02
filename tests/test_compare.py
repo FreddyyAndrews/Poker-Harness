@@ -158,3 +158,31 @@ def test_cli_compare_plain(bots, capsys):
                  "--json"])
     data = json.loads(capsys.readouterr().out)
     assert code == 0 and not data["duplicate"] and len(data["matches"]) == 1
+
+
+def test_queries_leave_out_compare_matches_by_default(bots, capsys):
+    main(["compare", bots["pairs"], bots["caller"], "--hands", "20", "--seed", "1", "--id", "cq"])
+    main(["match", "run", bots["pairs"], bots["caller"], "--hands", "10", "--seed", "2",
+          "--reset-stacks", "--id", "plain"])
+    capsys.readouterr()
+    main(["stats", "pairs", "--json"])
+    assert json.loads(capsys.readouterr().out)["hands"] == 10          # only the plain match
+    main(["stats", "pairs", "--json", "--with-compares"])
+    assert json.loads(capsys.readouterr().out)["hands"] == 10 + 2 * 20
+    main(["stats", "pairs", "--json", "--match", "cq-h2h-r0"])         # asked for by name
+    assert json.loads(capsys.readouterr().out)["hands"] == 20
+    main(["brief", "pairs", "--json"])
+    assert json.loads(capsys.readouterr().out)["stats"]["hands"] == 10
+
+
+def test_match_run_reset_stacks_plays_every_hand(bots, capsys):
+    shove = bots["pairs"].replace("pairs", "shove")
+    import pathlib
+    pathlib.Path(shove).parent.mkdir(exist_ok=True)
+    pathlib.Path(shove).write_text("def decide(s):\n    return {'action': 'all_in'}\n")
+    main(["match", "run", shove, bots["caller"], "--hands", "30", "--json", "--no-store"])
+    busted = json.loads(capsys.readouterr().out)
+    assert busted["end_reason"] == "one_player_left" and busted["n_hands"] < 30
+    main(["match", "run", shove, bots["caller"], "--hands", "30", "--reset-stacks", "--json", "--no-store"])
+    full = json.loads(capsys.readouterr().out)
+    assert full["end_reason"] == "hands_complete" and full["n_hands"] == 30

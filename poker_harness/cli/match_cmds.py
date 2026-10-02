@@ -48,7 +48,8 @@ def cmd_run(args):
     seats    = make_bot_seats(dict(zip(ids, args.bots)), timeout=args.timeout,
                               docker_image=(args.image if args.docker else None))
     config   = MatchConfig(n_hands=args.hands, small_blind=sb, big_blind=bb,
-                           starting_stack=args.stack, seed=args.seed)
+                           starting_stack=args.stack, seed=args.seed,
+                           reset_stacks=args.reset_stacks)
     writer   = None if args.no_store else RunWriter(match_id)
     if not args.json:
         where = f" -> {writer.dir}/" if writer else ""
@@ -283,6 +284,8 @@ def add_parser(sub):
     p.add_argument("--id", help="match id (default: timestamp)")
     p.add_argument("--blinds", default="50/100")
     p.add_argument("--stack", type=int, default=10_000, help="starting stack")
+    p.add_argument("--reset-stacks", action="store_true",
+                   help="start every hand from --stack, so nobody busts and every hand is played")
     p.add_argument("--timeout", type=float, default=2.0, help="seconds per decision")
     p.add_argument("--docker", action="store_true", help="run each bot in the sandbox container")
     p.add_argument("--image", default=DEFAULT_IMAGE)

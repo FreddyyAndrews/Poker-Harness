@@ -40,8 +40,9 @@ def _ci(s):
     return f"95% CI {lo:+.1f} .. {hi:+.1f}"
 
 
-def _filters(bot, match=None, version=None, last=None):
-    return SimpleNamespace(bot=bot, match=match, version=version, last=last, pos=None, vs=None)
+def _filters(bot, match=None, version=None, last=None, with_compares=False):
+    return SimpleNamespace(bot=bot, match=match, version=version, last=last, pos=None, vs=None,
+                           with_compares=with_compares)
 
 
 def _hindsight(conn, f) -> dict:
@@ -297,7 +298,8 @@ def cmd_brief(args):
         if not bot:
             raise BriefError("give a bot id or a match id")
         b = bot_brief(conn, _filters(bot, match=run.match_id if run else None,
-                                     version=args.version, last=args.last))
+                                     version=args.version, last=args.last,
+                                     with_compares=args.with_compares))
     if args.json:
         print(json.dumps(_json(b), indent=2, default=repr))
         return
@@ -319,5 +321,7 @@ def add_parser(sub):
     p.add_argument("--version", help="only this bot version (hash prefix)")
     p.add_argument("--last", type=int, metavar="N", help="only the bot's last N matches")
     p.add_argument("--max-lines", type=int, default=40)
+    p.add_argument("--with-compares", action="store_true",
+                   help="include matches played by arena compare (left out by default)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_brief)

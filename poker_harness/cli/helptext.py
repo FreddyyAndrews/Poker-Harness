@@ -117,7 +117,8 @@ EXAMPLES = {
   arena match hand ID:26""",
     "match run": """\
   arena match run bot/bot.py opponents/*.py --hands 400 --seed 1
-  arena match run bot/bot.py bot/bot.py --hands 50 --json   # self-play""",
+  arena match run bot/bot.py bot/bot.py --hands 50 --json   # self-play
+  arena match run bot/bot.py opponents/*.py --hands 500 --reset-stacks   # nobody busts""",
     "match list": """\
   arena match list --limit 10""",
     "match show": """\

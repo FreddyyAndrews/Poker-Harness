@@ -51,7 +51,7 @@ from poker_harness.engine.game import PokerEngine
 from poker_harness.equity import equity as compute_equity
 from poker_harness.runs import Run, list_runs, runs_dir
 
-INDEX_VERSION = 2
+INDEX_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS matches (
     n_hands INTEGER, seed INTEGER, small_blind INTEGER, big_blind INTEGER,
     starting_stack INTEGER, ranked INTEGER, duration_s REAL, run_dir TEXT,
     has_equity INTEGER, events_bytes INTEGER, indexed_at REAL,
-    perspective TEXT  -- god (local/mock runs) or own (arena records: one bot's view)
+    perspective TEXT,  -- god (local/mock runs) or own (arena records: one bot's view)
+    compare_id TEXT    -- set for matches played by arena compare
 );
 
 CREATE TABLE IF NOT EXISTS seats (
@@ -183,11 +184,12 @@ def index_run(conn: sqlite3.Connection, run: Run, with_equity: bool = True) -> i
             _index_hand(conn, mid, evs, records, versions, cfg, with_equity)
             n += 1
 
-    conn.execute("INSERT INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+    conn.execute("INSERT INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
         mid, meta.get("created"), meta.get("status"), res.get("end_reason"),
         res.get("n_hands", n), cfg.get("seed"), cfg.get("small_blind"), cfg.get("big_blind"),
         cfg.get("starting_stack"), int(bool(cfg.get("ranked", True))), res.get("duration_s"),
-        str(run.dir), int(with_equity), _size(run), time.time(), meta.get("perspective", "god")))
+        str(run.dir), int(with_equity), _size(run), time.time(), meta.get("perspective", "god"),
+        (meta.get("labels") or {}).get("compare")))
     conn.commit()
     return n
 

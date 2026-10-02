@@ -52,6 +52,8 @@ WHICH COMMAND
 CONVENTIONS
   Output    short by default; --json gives the full structure
   Refs      results start with MATCH:HAND; open one with arena match hand MATCH:HAND
+  Queries   stats/hands/decisions/brief leave out arena compare's matches
+            (add --with-compares to include them)
   IDs       matches, hands (h1), probes (p-...), sweeps (s-...), tests (t-...),
             comparisons (c-...) are stored; list them and show one by id
   Exit      0 ok · 1 arena test had failures · 2 bad input or error
