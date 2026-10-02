@@ -93,6 +93,10 @@ README.md for the architecture and the plan (T1-T8).
   ARG_HELP / PATH_ARG_HELP, or `help=`). Every example must parse. When a
   command is added or changes, update `arena guide`
   (poker_harness/cli/guide.py) too.
+- Arena records (`poker_harness/arena_records.py`) are read as runs with
+  stand-in cards for what the bot never saw; hand_start's `known_seats` and
+  `known_board` say which cards are real. Anything that shows, stores or
+  computes with cards must respect them: never reveal stand-ins.
 - Tests must be deterministic: give anything whose result depends on the
   cards a seed or fixed cards.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.

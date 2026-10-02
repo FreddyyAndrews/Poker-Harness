@@ -13,8 +13,9 @@ cross-match queries, probes, test suites, duplicate comparisons and agent
 briefs, all from the `arena` CLI (see
 [What works today](#what-works-today)). The bot API is specified in
 [docs/bot-api.md](docs/bot-api.md), `arena connect` is the bridge that
-plays on it, and `arena serve-mock` is a local arena to test against;
-next is own-perspective tooling for arena records (see [Plan](#plan)).
+plays on it, `arena serve-mock` is a local arena to test against, and the
+local tools read the bridge's records of arena matches. That completes
+the toolkit's part of milestone 1 (see [Plan](#plan)).
 
 ---
 
@@ -138,7 +139,8 @@ Work in this repo:
   without production, and gives poker-arena a reference to check its
   implementation against.
 
-**T5. Own-perspective tooling**
+**T5. Own-perspective tooling** (**done**, v0.6.0; see
+[Analyse arena matches](#analyse-arena-matches))
 - Production records have no hidden cards, so the index, `stats` and
   `brief` must work without them: equity only where cards were shown, and
   no hindsight leaks.
@@ -597,6 +599,38 @@ matchmaking: {enabled: true, interval_s: 5, opponents: [house-tight],
               formats: [{seats: 2, hands: 100, reset_stacks: true}]}
 ```
 
+### Analyse arena matches
+
+The bridge records every arena match from your bot's own view in
+`runs/arena/<match_id>/`. The local tools read those records under the id
+`arena/<match_id>`, the same way as local matches:
+
+```bash
+arena match list                              # includes arena/<match_id> records
+arena match show arena/mock-170751-2
+arena match hand arena/mock-170751-2:12       # opponents' unshown cards appear as ????
+arena match verify arena/mock-170751-2        # every hand replays from the record
+arena stats mybot                             # arena records are indexed too
+arena brief mybot
+arena probe --from arena/mock-170751-2:12 --warm   # your bot, in the state it was sent
+arena match hand arena/mock-170751-2:12 --at 3 --save from-the-arena
+```
+
+A record only holds what the arena sent your bot: your cards, public
+actions, the board as dealt, and hands shown at showdown. So:
+- Stats that come from actions (win rate, VPIP, PFR, 3-bet, aggression,
+  showdown rates, positions) are exactly the same as with god view.
+- Hindsight equity is only known for a decision if every opponent still in
+  the hand later showed their cards; briefs and equity queries say so.
+- Opponents' hidden cards are never shown or saved: a spot made from an
+  arena hand keeps your cards and the dealt board, and leaves the rest
+  random.
+- Only your own bot's decisions can be probed.
+
+When you test against `arena serve-mock` with a shared `runs/`, the mock's
+god-view record of a match is used and the bridge's copy is skipped, so
+nothing is counted twice.
+
 ### The bot contract
 
 ```python
@@ -665,6 +699,7 @@ poker_harness/seats.py        Seat interface: bot processes/containers, scripted
 poker_harness/match.py        async MatchRunner: plays a match through seats, records everything
 poker_harness/runs.py         run store (runs/<id>/): writer, reader, event schema
 poker_harness/replay.py       rebuild/verify hands from events; any point in a hand -> spot
+poker_harness/arena_records.py  read the bridge's own-view arena records as runs (arena/<id>)
 poker_harness/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
 poker_harness/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
 poker_harness/expect.py       expected answers for spots (used by arena test)
