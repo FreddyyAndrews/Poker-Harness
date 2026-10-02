@@ -95,9 +95,9 @@ runs/<match_id>/
   bots/<bot>/decisions.jsonl  state seen, reply, applied action, ctx.log notes, timing
   bots/<bot>/stderr.log
 ```
-Still planned: LLM calls in the decision records (phase 5), and a SQLite
-index for querying across matches, for example "biggest losing hands for
-bot X, with its reasoning" (phase 2).
+`runs/index.sqlite` indexes every finished run for queries across
+matches (see [Query across matches](#query-across-matches)). Still
+planned: LLM calls in the decision records (phase 5).
 
 ### Arena server and lobby
 - Tables go through `open → filling → running → finished`.
@@ -156,7 +156,11 @@ memory.
    `legal_actions()`, strict mode, rigged deals, uncalled bets), spots and
    `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
    the async match runner, the run store and replay.
-2. **Logs:** per-bot decision logs, log queries, `arena probe/sweep/test`.
+2. **Logs and evaluation:** the cross-match index and queries
+   (`arena stats/hands/decisions/sql`) are **done** (2a). Still to do:
+   `arena probe/sweep` (2b), test suites with expected answers (2c),
+   duplicate-deal comparisons with confidence intervals (2d), and short
+   briefs for agents (2e).
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
 4. **Human seats:** play mode with optional god view, edit and fork from
    replay.
@@ -295,6 +299,39 @@ arena match hand ID 26 --at 4 --save my-spot   # the position before action 4, s
 arena match verify ID        # replay every hand from the log and check the result
 ```
 
+### Query across matches
+
+Finished runs are indexed into `runs/index.sqlite` automatically the first
+time you query (`arena index --rebuild` to redo it). A bot is its id plus
+the version hash of its code, so results can be split by version. Every
+result line starts with a `MATCH:HAND` reference you can open with
+`arena match hand MATCH:HAND`.
+
+```bash
+arena stats mathematician                # bb/100 with a 95% CI, VPIP/PFR/3-bet/AF/WTSD/W$SD,
+                                         # fold-to-bet by street, by position, errors, timing
+arena stats shark --version 1409a7 --vs aggressor --last 5
+arena hands --bot shark --lost-more 2000 --showdown      # costliest hands first
+arena decisions --bot mathematician --action fold --equity-above 0.6   # folded a winner
+arena decisions --bot mybot --street river --facing-bet --log-contains bluff
+arena decisions --bot mybot --error            # timeouts, crashes, exceptions
+arena sql "SELECT pos, avg(delta_bb) FROM hand_players WHERE bot_id='shark' GROUP BY pos"
+arena sql --schema                             # tables, columns and stat definitions
+```
+```
+mathematician · 643 hands in 2 match(es) · version 782e554e28f8 (2 matches)
+win rate   -7.8 bb/100  (95% CI -16.3 .. +0.6)   chips -5,050
+style      VPIP 24%  PFR 0%  3-bet 0% (of 121)  AF 0.0  WTSD 74%  W$SD 60%
+folds to a bet  preflop 73% (n=581)  flop 92% (n=25)  turn 67% (n=12)  river 60% (n=5)
+...
+note: the confidence interval includes 0; the win rate isn't distinguishable from break-even yet
+```
+
+`equity` on a decision is the acting player's share of the pot against the
+hole cards actually still in, on the flop, turn and river. It uses cards
+the bot couldn't see, which is what makes leak queries like "folded with
+70% equity" possible. Indexing computes it exactly; `--no-equity` skips it.
+
 To run every bot in its own locked-down container instead of a local
 process:
 
@@ -376,6 +413,7 @@ arena/seats.py        Seat interface: bot processes/containers, scripted and cal
 arena/match.py        async MatchRunner: plays a match through seats, records everything
 arena/runs.py         run store (runs/<id>/): writer, reader, event schema
 arena/replay.py       rebuild/verify hands from events; any point in a hand -> spot
+arena/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
 arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
 spots/                the spot library

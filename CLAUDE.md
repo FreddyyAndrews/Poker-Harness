@@ -49,6 +49,10 @@ README.md for the goals, the planned architecture and the roadmap.
   `arena/runs.py`; its docstring is the event/record schema, so keep it in
   sync. Bump `SCHEMA_VERSION` for incompatible changes. Every hand must
   still replay exactly (`arena match verify`, `tests/test_match.py`).
+- `runs/index.sqlite` (arena/index.py) is derived from runs/ and can be
+  deleted at any time. Bump `INDEX_VERSION` whenever its schema or stat
+  definitions change (old indexes are then cleared and rebuilt). Stats
+  tests use seats with fixed behaviour so every number is known exactly.
 - Tests must not write into the repo: point `ARENA_RUNS`, `ARENA_HOME` and
   `ARENA_SPOTS` at `tmp_path` (or pass a `root`).
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
