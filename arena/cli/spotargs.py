@@ -30,15 +30,23 @@ def add_spot_options(p):
     g.add_argument("--seed", type=int)
     g.add_argument("--name")
     g.add_argument("--desc", dest="description")
+    g.add_argument("--tags", help="comma-separated tags, e.g. river,bluff-catch")
+    g.add_argument("--expect", help="expected answer as YAML, e.g. \"{not: [fold]}\" (see arena test -h)")
 
 
 def spot_from_args(args) -> Spot:
     base = Spot.load(find_spot(args.ref)).to_dict() if getattr(args, "ref", None) else {}
     for key in ("players", "button", "stacks", "blinds", "cards", "board",
-                "actions", "to_act", "seed", "name", "description"):
+                "actions", "to_act", "seed", "name", "description", "tags"):
         val = getattr(args, key, None)
         if val is not None:
             base[key] = val
+    if getattr(args, "expect", None):
+        import yaml
+        try:
+            base["expect"] = yaml.safe_load(args.expect)
+        except yaml.YAMLError as e:
+            raise SpotError(f"--expect isn't valid YAML: {e}") from None
     if args.players is not None and args.stacks is None and "stacks" in base \
             and "," in str(base["stacks"]):
         raise SpotError("--players conflicts with the spot's per-seat stacks; pass --stacks too")

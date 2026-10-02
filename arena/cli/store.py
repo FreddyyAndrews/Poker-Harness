@@ -34,13 +34,24 @@ def find_spot(ref: str) -> Path:
     raise SpotError(f"no spot file or library spot named {ref!r} (library: {spots_dir()}/)")
 
 
-def list_spots() -> list:
-    d = spots_dir()
+def spot_ref(path: Path) -> str:
+    """Library name of a spot file: its path under the library, no suffix
+    (e.g. suites/basics/check-when-free)."""
+    try:
+        return str(path.relative_to(spots_dir()).with_suffix(""))
+    except ValueError:
+        return str(path)
+
+
+def list_spots(subdir: str = None) -> list:
+    """[(path, spot or None, error or None)] for every spot file in the
+    library (or under one of its subdirectories), including suites."""
+    d = spots_dir() / subdir if subdir else spots_dir()
     if not d.is_dir():
         return []
     out = []
-    for p in sorted(d.iterdir()):
-        if p.suffix in SPOT_SUFFIXES:
+    for p in sorted(d.rglob("*")):
+        if p.suffix in SPOT_SUFFIXES and p.is_file():
             try:
                 out.append((p, Spot.load(p), None))
             except Exception as e:      # list broken files instead of failing
@@ -49,12 +60,14 @@ def list_spots() -> list:
 
 
 def save_spot(spot: Spot, name: str, force: bool = False) -> Path:
-    if not name.replace("-", "").replace("_", "").isalnum():
-        raise SpotError(f"spot names use letters, digits, - and _ only; got {name!r}")
+    parts = name.split("/")
+    if not all(p and p.replace("-", "").replace("_", "").isalnum() for p in parts):
+        raise SpotError(f"spot names use letters, digits, - and _ (and / for folders, "
+                        f"e.g. suites/basics/x); got {name!r}")
     path = spots_dir() / f"{name}.yaml"
     if path.exists() and not force:
         raise SpotError(f"spot {name!r} already exists ({path}); use --force to overwrite")
-    spot.name = name
+    spot.name = parts[-1]
     spot.save(path)
     return path
 

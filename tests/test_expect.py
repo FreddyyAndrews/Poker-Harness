@@ -1,7 +1,11 @@
 """Expectations (arena/expect.py) and `arena test`."""
+import json
+import textwrap
+
 import pytest
 
 from arena import expect as ex
+from arena.cli.main import main
 from arena.spot import Spot, SpotError
 
 
@@ -95,3 +99,84 @@ def test_errors_fail_unless_allowed():
 
 def test_no_samples_never_passes():
     assert not ex.evaluate({"not": ["fold"]}, [], STATE)["passed"]
+
+
+# ---------------------------------------------------------------------------
+# arena test
+# ---------------------------------------------------------------------------
+
+CALLER = """
+    def decide(state):
+        return {"action": "check" if state["can_check"] else "call"}
+"""
+
+SPOTS = {
+    "suites/s/free": dict(players=2, button=0, actions="pre: BTN c", to_act="BB",
+                          tags=["free"], expect={"not": ["fold"]}),
+    "suites/s/shove": dict(players=2, button=0, cards="BB=7c2d", actions="pre: BTN a",
+                           to_act="BB", expect={"action": ["fold"]}),
+    "plain": dict(players=2, button=0),
+}
+
+
+@pytest.fixture
+def lib(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("ARENA_RUNS", str(tmp_path / "runs"))
+    monkeypatch.setenv("ARENA_SPOTS", str(tmp_path / "spots"))
+    for name, d in SPOTS.items():
+        path = tmp_path / "spots" / f"{name}.yaml"
+        Spot.from_dict(d).save(path)
+    bot = tmp_path / "caller.py"
+    bot.write_text(textwrap.dedent(CALLER))
+
+    def run(*argv):
+        code = main(list(argv))
+        out = capsys.readouterr()
+        return code, out.out, out.err
+    return run, str(bot)
+
+
+def test_arena_test_suite_pass_and_fail(lib):
+    run, bot = lib
+    code, out, err = run("test", bot, "--suite", "s")
+    assert code == 1
+    assert "PASS  suites/s/free" in out and "FAIL  suites/s/shove" in out
+    assert "call in 5/5; expected fold" in out and "1 passed, 1 failed" in out
+
+
+def test_arena_test_whole_library_skips_spots_without_expect(lib):
+    run, bot = lib
+    code, out, err = run("test", bot, "--tag", "free", "-n", "2")
+    assert code == 0 and "1 passed, 0 failed" in out and "1 without expect skipped" in err
+
+
+def test_arena_test_json_and_stored_run(lib):
+    run, bot = lib
+    code, out, _ = run("test", bot, "suites/s/free", "--json", "-n", "3")
+    data = json.loads(out)
+    assert code == 0 and data["passed"] and data["results"][0]["n"] == 3
+    code, out, _ = run("probes")
+    assert "1/1 passed" in out
+    code, out, _ = run("probes", data["id"], "--verbose")
+    assert "PASS  suites/s/free" in out and "suites/s/free  #0" in out
+
+
+def test_arena_test_usage_errors(lib):
+    run, bot = lib
+    code, _, err = run("test", bot, "plain")
+    assert code == 2 and "no expect" in err
+    code, _, err = run("test", bot, "--suite", "nope")
+    assert code == 2 and "no suite" in err
+    code, _, err = run("test", bot, "--tag", "nothing-has-this")
+    assert code == 2 and "no spots" in err
+
+
+def test_spot_expect_option_and_listing(lib):
+    run, bot = lib
+    code, out, err = run("spot", "--players", "2", "--expect", "{not: [fold]}", "--tags", "x,y",
+                         "--save", "suites/new/one", "--no-equity")
+    assert code == 0
+    code, out, _ = run("spots")
+    assert "suites/new/one" in out and "[expect] [x, y]" in out
+    code, _, err = run("spot", "--expect", "{bogus: 1}")
+    assert code == 2 and "unknown expect keys" in err

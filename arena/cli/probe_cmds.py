@@ -122,8 +122,13 @@ def cmd_probes(args):
         if not rows:
             print("no probes yet (arena probe BOT SPOT)")
         for r in rows[-args.limit:]:
-            modal = r.get("summary", {}).get("modal") if r["kind"] == "probe" else None
-            extra = f"mostly {modal}" if modal else f"{len(r.get('variants', []))} variants"
+            if r["kind"] == "probe":
+                extra = f"mostly {r.get('summary', {}).get('modal')}"
+            elif r["kind"] == "test":
+                res = r.get("results", [])
+                extra = f"{sum(x['passed'] for x in res)}/{len(res)} passed"
+            else:
+                extra = f"{len(r.get('variants', []))} variants"
             print(f"{r['id']:<28} {r['kind']:<6} {r['bot']['path']}  {r['target']}  {extra}")
         return
     d, info, samples = pr.load_probe(args.id)
@@ -132,6 +137,9 @@ def cmd_probes(args):
         return
     if info["kind"] == "sweep":
         print(_sweep_text(info))
+    elif info["kind"] == "test":
+        from arena.cli.test_cmds import test_text
+        print(test_text(info))
     else:
         print("\n".join([f"probe {info['id']} · {info['bot']['path']} · {info['target']}",
                          _situation(info["state"])] + _summary_lines(info["summary"])))

@@ -21,7 +21,8 @@ full structure.
   arena sql "SELECT ..." | --schema    read-only SQL over the index
   arena probe BOT SPOT [-n 20]         what does the bot do here? (or --from MATCH:HAND)
   arena sweep BOT SPOT --vary ...      ... and where does its answer flip?
-  arena probes [ID]                    stored probes and sweeps
+  arena probes [ID]                    stored probes, sweeps and test runs
+  arena test BOT [--suite NAME]        spots with expected answers; exit 1 on failure
 
 Run `arena <command> -h` for options. Spot notation is described in
 arena/spot.py and `arena spot -h`.
@@ -32,10 +33,10 @@ import json
 import random
 import sys
 
-from arena.cli import index_cmds, match_cmds, probe_cmds, render
+from arena.cli import index_cmds, match_cmds, probe_cmds, render, test_cmds
 from arena.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
 from arena.cli.spotargs import spot_from_args as _spot_from_args
-from arena.cli.store import HandStore, list_spots, save_spot, spots_dir
+from arena.cli.store import HandStore, list_spots, save_spot, spot_ref, spots_dir
 from arena.engine.game import IllegalActionError
 from arena.equity import DEFAULT_ITERS, equity
 from arena.spot import Spot, SpotError, parse_action_token
@@ -86,7 +87,7 @@ def cmd_spots(args):
     rows = []
     for path, spot, err in list_spots():
         if err:
-            rows.append({"name": path.stem, "path": str(path), "error": err})
+            rows.append({"name": spot_ref(path), "path": str(path), "error": err})
             continue
         try:
             _, state = spot.to_engine()
@@ -94,20 +95,24 @@ def cmd_spots(args):
                      if state["type"] == "action_request" else "hand over")
         except SpotError as e:
             where, err = "invalid", str(e)
-        rows.append({"name": spot.name, "path": str(path), "players": spot.players,
-                     "where": where, "description": spot.description, "error": err})
+        rows.append({"name": spot_ref(path), "path": str(path), "players": spot.players,
+                     "where": where, "description": spot.description, "tags": spot.tags,
+                     "expect": spot.expect, "error": err})
     if args.json:
         print(json.dumps(rows, indent=2))
         return
     if not rows:
         print(f"no spots in {spots_dir()}/ (save one with: arena spot ... --save NAME)")
         return
+    width = max(len(r["name"]) for r in rows) + 2
     for r in rows:
         if r.get("error"):
-            print(f"{r['name']:<28} ERROR {r['error']}")
+            print(f"{r['name']:<{width}} ERROR {r['error']}")
         else:
             desc = f"  {r['description']}" if r["description"] else ""
-            print(f"{r['name']:<28} {r['players']}p  {r['where']}{desc}")
+            marks = (" [expect]" if r["expect"] else "") + \
+                    (f" [{', '.join(r['tags'])}]" if r["tags"] else "")
+            print(f"{r['name']:<{width}} {r['players']}p  {r['where']}{marks}{desc}")
 
 
 def cmd_hand_new(args):
@@ -313,14 +318,14 @@ def build_parser() -> argparse.ArgumentParser:
     match_cmds.add_parser(sub)
     index_cmds.add_parsers(sub)
     probe_cmds.add_parsers(sub)
+    test_cmds.add_parser(sub)
     return ap
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        args.fn(args)
-        return 0
+        return args.fn(args) or 0
     except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError,
             probe_cmds.pr.ProbeError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
