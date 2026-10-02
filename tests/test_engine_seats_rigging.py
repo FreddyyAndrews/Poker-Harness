@@ -338,7 +338,9 @@ def test_uncalled_raise_is_returned_not_won():
 
 
 def test_uncalled_excess_over_short_all_in_is_returned():
-    eng = make([30, 10_000], dealer=0)       # SB all-in for 30 posting
+    # SB all-in for 30 posting; fixed cards so the pot can't be split
+    eng = make([30, 10_000], dealer=0, hole_cards={0: ["2c", "7d"], 1: ["As", "Ah"]},
+               board=["Kd", "9s", "4h", "Jc", "3s"])
     result = eng.start_hand()
     assert result["uncalled"] == {"seat": 1, "bot_id": "s1", "amount": 70}
     assert [w["pot_type"] for w in result["winners"]] == ["main"]
