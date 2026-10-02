@@ -1,11 +1,13 @@
 """The run index and the query commands, checked against matches whose
 stats are known from the seats' fixed behaviour."""
 import asyncio
+import json
 import sqlite3
 
 import pytest
 
 from arena import index as idx
+from arena.cli.main import main
 from arena.equity import equity
 from arena.match import MatchConfig, MatchRunner, make_bot_seats
 from arena.runs import Run, RunWriter
@@ -149,3 +151,81 @@ def test_index_version_change_clears_tables(root):
     assert q(c, "SELECT count(*) FROM matches")[0][0] == 0
     c.close()
     assert idx.ensure_index(root)["indexed"] == ["m1"]
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def cli(root, capsys):
+    def run(*argv):
+        code = main(list(argv))
+        out = capsys.readouterr()
+        return code, out.out, out.err
+    return run
+
+
+def test_cli_stats(root, cli):
+    three(root, n_hands=30)
+    code, out, err = cli("stats", "raiser")
+    assert code == 0 and "raiser · 30 hands in 1 match(es)" in out
+    assert "VPIP 100%  PFR 100%" in out and "95% CI" in out
+    code, out, _ = cli("stats", "caller", "--json")
+    s = json.loads(out)
+    assert s["vpip"] == 1 and s["pfr"] == 0 and s["three_bet_opps"] == 30
+    assert s["fold_to_bet"]["preflop"]["rate"] == 0
+    assert set(s["by_position"]) == {"BTN", "SB", "BB"}
+    code, out, err = cli("stats", "nobody")
+    assert code == 2 and "no hands" in err
+
+
+def test_cli_hands_filters(root, cli):
+    three(root, n_hands=30)
+    code, out, _ = cli("hands", "--bot", "caller", "--showdown", "--json", "--limit", "100")
+    rows = json.loads(out)
+    assert rows and all(r["showdown"] for r in rows)
+    assert [r["delta"] for r in rows] == sorted(r["delta"] for r in rows)   # biggest losses first
+    code, out, _ = cli("hands", "--bot", "folder", "--pos", "BB", "--json", "--limit", "100")
+    assert {r["pos"] for r in json.loads(out)} == {"BB"}
+    code, out, _ = cli("hands", "--bot", "caller", "--lost-more", "100000")
+    assert "no matching hands" in out
+    code, out, _ = cli("hands", "--bot", "caller", "--limit", "1")
+    ref = out.split()[0]
+    code, out, _ = cli("match", "hand", ref, "--no-equity")
+    assert code == 0 and f"hand {ref.split(':')[1]}" in out
+
+
+def test_cli_decisions_filters(root, cli, tmp_path):
+    bot = tmp_path / "noter.py"
+    bot.write_text("def decide(s, ctx):\n"
+                   "    ctx.log('bluff' if s['street'] == 'river' else 'value', owed=s['amount_owed'])\n"
+                   "    return {'action': 'check' if s['can_check'] else 'call'}\n")
+    seats = {"noter": make_bot_seats({"noter": str(bot)})["noter"],
+             "junk": CallbackSeat("junk", junk)}
+    play(root, "d1", seats, n_hands=20)
+    code, out, _ = cli("decisions", "--bot", "noter", "--log-contains", "bluff", "--json")
+    rows = json.loads(out)
+    assert rows and all(r["street"] == "river" for r in rows)
+    assert rows[0]["logs"][0]["msg"] == "bluff"
+    code, out, _ = cli("decisions", "--bot", "junk", "--corrected", "--json", "--limit", "100")
+    assert json.loads(out) and all(r["corrected"] for r in json.loads(out))
+    code, out, _ = cli("decisions", "--bot", "noter", "--street", "flop", "--equity-below", "0.5",
+                       "--json", "--limit", "100")
+    assert all(r["equity"] < 0.5 for r in json.loads(out))
+    code, out, _ = cli("decisions", "--hand", "d1:0")
+    assert code == 0 and "d1:0" in out
+    code, out, _ = cli("decisions", "--error")
+    assert "no matching decisions" in out
+
+
+def test_cli_sql_is_read_only(root, cli):
+    three(root, n_hands=3)
+    code, out, _ = cli("sql", "SELECT bot_id, count(*) n FROM hand_players GROUP BY bot_id ORDER BY bot_id")
+    assert code == 0 and out.splitlines()[1].startswith("caller")
+    code, out, err = cli("sql", "DELETE FROM hands")
+    assert code == 2 and "readonly" in err
+    code, out, _ = cli("sql", "--schema")
+    assert "CREATE TABLE IF NOT EXISTS decisions" in out and "three_bet" in out
+    code, out, _ = cli("index", "--json")
+    assert json.loads(out)["counts"]["hands"] == 3

@@ -15,6 +15,10 @@ full structure.
   arena equity HAND HAND... [--board]  showdown equity
   arena match run BOT BOT...           play a match; stored in runs/<id>/
   arena match list | show ID | hand ID N [--at K] | verify ID
+  arena stats BOT                      win rate (with confidence interval), style, leaks
+  arena hands [filters]                find hands, e.g. --bot X --lost-more 2000
+  arena decisions [filters]            find decisions with the bot's notes
+  arena sql "SELECT ..." | --schema    read-only SQL over the index
 
 Run `arena <command> -h` for options. Spot notation is described in
 arena/spot.py and `arena spot -h`.
@@ -25,7 +29,7 @@ import json
 import random
 import sys
 
-from arena.cli import match_cmds, render
+from arena.cli import index_cmds, match_cmds, render
 from arena.cli.store import HandStore, find_spot, list_spots, save_spot, spots_dir
 from arena.engine.game import IllegalActionError
 from arena.equity import DEFAULT_ITERS, equity
@@ -342,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_equity)
 
     match_cmds.add_parser(sub)
+    index_cmds.add_parsers(sub)
     return ap
 
 
@@ -350,7 +355,7 @@ def main(argv=None) -> int:
     try:
         args.fn(args)
         return 0
-    except (CliError, match_cmds.MatchCliError, SpotError, IllegalActionError,
+    except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
         if getattr(args, "json", False):
             print(json.dumps({"error": str(e)}))

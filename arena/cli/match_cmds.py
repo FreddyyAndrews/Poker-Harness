@@ -182,6 +182,11 @@ def _action_text(ev) -> str:
 
 
 def cmd_hand(args):
+    if args.hand is None:
+        mid, _, hn = args.id.rpartition(":")
+        if not mid or not hn.isdigit():
+            raise MatchCliError("give MATCH HAND or MATCH:HAND, e.g. six1:26")
+        args.id, args.hand = mid, int(hn)
     run = Run.open(args.id)
     events = run.hand_events(args.hand)
     if not any(e["type"] == "hand_start" for e in events):
@@ -294,8 +299,8 @@ def add_parser(sub):
 
     p = msub.add_parser("hand", help="god view of one hand, with each decision's logs",
                         epilog="--at K shows the position before action K (0 = before anyone acts)")
-    p.add_argument("id")
-    p.add_argument("hand", type=int)
+    p.add_argument("id", help="match id, or MATCH:HAND as printed by arena hands")
+    p.add_argument("hand", type=int, nargs="?")
     p.add_argument("--at", type=int)
     p.add_argument("--logs", type=int, default=3, help="ctx.log lines shown per decision")
     p.add_argument("--save", metavar="NAME", help="save this position as a library spot")
