@@ -140,6 +140,51 @@ def seat_positions(stacks: list, button: int) -> dict:
     return dict(zip(live, names))
 
 
+def lenient_action(raw, *, owed: int, can_raise: bool, min_raise_to: int,
+                   stack: int, bet: int) -> tuple:
+    """The lenient rules for turning any reply into a legal action, as
+    (action, amount): unknown actions fold, check/call become whichever is
+    legal, raises below the minimum go up to it, raises the player can't
+    cover become all-in, and raises nobody could answer become a call.
+    Shared by the engine and normalize_action, so they can't drift."""
+    raw = raw if isinstance(raw, dict) else {}
+    act = str(raw.get("action", "fold")).lower().strip()
+    try:
+        amount = int(raw.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+
+    if act not in ACTIONS:
+        return "fold", 0
+
+    def check_or_call():
+        return ("check", 0) if owed == 0 else ("call", owed)
+
+    if act in ("check", "call"):
+        return check_or_call()
+    if not can_raise:
+        # nobody left who could respond, or can't cover more than a call
+        return check_or_call()
+    if act == "raise":
+        amount = max(amount, min_raise_to)
+        if amount - bet >= stack:
+            return "all_in", stack + bet
+        return "raise", amount
+    if act == "all_in":
+        return "all_in", stack + bet
+    return "fold", 0
+
+
+def normalize_action(state: dict, raw) -> dict:
+    """What the engine will do with `raw` in this action_request `state`
+    (lenient rules), as {"action", "amount"}, without needing the engine."""
+    act, amount = lenient_action(
+        raw, owed=state["amount_owed"], can_raise=state["legal_actions"]["can_raise"],
+        min_raise_to=state["min_raise_to"], stack=state["your_stack"],
+        bet=state["your_bet_this_street"])
+    return {"action": act, "amount": amount}
+
+
 def _parse_card(text) -> eval7.Card:
     try:
         return eval7.Card(str(text))
@@ -585,38 +630,13 @@ class PokerEngine:
 
     def _validate(self, seat: int, raw: dict) -> Action:
         """Lenient: always returns a legal action, correcting if needed."""
-        p      = self.players[seat]
-        legal  = self.legal_actions(seat)
-        act, amount = self._parse_raw(raw)
-        amount = amount or 0
-
-        if act not in ACTIONS:
-            return Action(seat, "fold")
-
-        owed = self.current_bet - p.bet_this_street
-
-        def check_or_call():
-            return Action(seat, "check") if owed == 0 else Action(seat, "call", owed)
-
-        if act in ("check", "call"):
-            return check_or_call()
-
-        if act in ("raise", "all_in") and not legal["can_raise"]:
-            # nobody left who could respond, or can't cover more than a call
-            return check_or_call()
-
-        if act == "raise":
-            min_total    = self.current_bet + self.min_raise
-            amount       = max(amount, min_total)
-            chips_needed = amount - p.bet_this_street
-            if chips_needed >= p.stack:
-                return Action(seat, "all_in", p.stack + p.bet_this_street)
-            return Action(seat, "raise", amount)
-
-        if act == "all_in":
-            return Action(seat, "all_in", p.stack + p.bet_this_street)
-
-        return Action(seat, "fold")
+        p = self.players[seat]
+        act, amount = lenient_action(
+            raw, owed=self.current_bet - p.bet_this_street,
+            can_raise=self.legal_actions(seat)["can_raise"],
+            min_raise_to=self.current_bet + self.min_raise,
+            stack=p.stack, bet=p.bet_this_street)
+        return Action(seat, act, amount)
 
     def _validate_strict(self, seat: int, raw: dict) -> Action:
         """Strict: returns the action as given, or raises IllegalActionError."""

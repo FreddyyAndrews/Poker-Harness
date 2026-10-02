@@ -5,7 +5,7 @@ import random
 import eval7
 import pytest
 
-from poker_harness.engine.game import IllegalActionError, PokerEngine, next_button
+from poker_harness.engine.game import IllegalActionError, PokerEngine, next_button, normalize_action
 
 
 def make(stacks, dealer=0, **kw):
@@ -355,3 +355,27 @@ def test_fully_called_pot_returns_nothing():
     while result["type"] == "action_request":
         result = eng.apply_action(result["seat_to_act"], {"action": "check"})
     assert result["uncalled"] is None
+
+
+# ---------------------------------------------------------------------------
+# normalize_action (the engine's lenient rules without an engine)
+# ---------------------------------------------------------------------------
+
+def test_normalize_action_matches_the_engine():
+    rng = random.Random(3)
+    replies = [{"action": "raise", "amount": -5}, {"action": "raise", "amount": 10**9},
+               {"action": "check"}, {"action": "call"}, {"action": "all_in"}, {"action": "fold"},
+               {"action": "nonsense"}, {}, None, {"action": "raise", "amount": "x"}]
+    for _ in range(500):
+        n = rng.randint(2, 6)
+        stacks = [rng.choice([0, 80, 500, 10_000]) for _ in range(n)]
+        if sum(1 for s in stacks if s) < 2:
+            continue
+        ids = [f"b{i}" for i in range(n)]
+        eng = PokerEngine("t", ids, dealer_seat=next_button(stacks), seed=rng.randrange(10**6),
+                          starting_stacks=dict(zip(ids, stacks)))
+        state = eng.start_hand()
+        while state["type"] == "action_request":
+            raw = rng.choice(replies)
+            assert normalize_action(state, raw) == eng.preview(raw)
+            state = eng.apply_action(state["seat_to_act"], raw)
