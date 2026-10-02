@@ -22,7 +22,7 @@ bridge client and a mock server (see [Plan](#plan)).
 |---|---|---|---|
 | **Poker-Harness** (this repo) | Toolkit library: rules engine, bot protocol, local dev arena (matches, god view, probes, tests, comparisons, briefs), the bot bridge client and a mock server | python-chess (+ dev tools) | public |
 | [poker-bot-template](https://github.com/FreddyyAndrews/poker-bot-template) | What a user forks and drops an agent into: a bot, dummy opponents, spot suites, bridge config, agent instructions | lichess-bot | public |
-| poker-arena | Production backend (FastAPI + Postgres) and frontend (React): accounts, tokens, the bot API, matchmaking, ratings, watching and playing | lila | private |
+| [poker-arena](https://github.com/FreddyyAndrews/poker-arena) | Production backend (FastAPI + Postgres) and frontend (React): accounts, tokens, the bot API, matchmaking, ratings, watching and playing | lila | public |
 
 Both other repos install this one, so the rules are identical in local
 development and in production.

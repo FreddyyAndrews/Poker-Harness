@@ -2,7 +2,8 @@
 
 Poker Harness is the toolkit library of a three-repo poker bot arena
 modelled on lichess (this repo ~ python-chess plus dev tools;
-poker-bot-template ~ lichess-bot; poker-arena ~ lila, private). See
+poker-bot-template ~ lichess-bot; poker-arena ~ lila). All three are
+public. See
 README.md for the architecture and the plan (T1-T8).
 
 - Everything here is public and used by both other repos: keep the
