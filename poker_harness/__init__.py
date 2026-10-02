@@ -1,4 +1,4 @@
 """Poker Harness: the toolkit of an LLM poker bot arena (engine, bot protocol,
 local development arena). Built on the Fullhouse engine."""
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"

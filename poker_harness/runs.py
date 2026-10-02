@@ -139,12 +139,17 @@ class Run:
         self.meta = json.loads((self.dir / "meta.json").read_text())
 
     @classmethod
-    def open(cls, ref: str, root: Optional[Path] = None) -> "Run":
-        """A run id in the runs dir, or a path to a run directory."""
+    def open(cls, ref: str, root: Optional[Path] = None):
+        """A run id in the runs dir, or a path to a run directory. Ids
+        starting with "arena/" (and paths to bridge records) open the
+        bridge's own-perspective record of an arena match."""
+        from poker_harness.arena_records import ArenaRecord, is_arena_ref
         p = Path(ref)
-        if (p / "meta.json").exists():
-            return cls(p)
-        return cls((root or runs_dir()) / ref)
+        if not (p / "meta.json").exists():
+            p = (root or runs_dir()) / ref
+        if is_arena_ref(ref) or _is_arena_record(p):
+            return ArenaRecord(p)
+        return cls(p)
 
     @property
     def match_id(self) -> str:
@@ -181,15 +186,31 @@ class Run:
         return [s["bot_id"] for s in self.meta.get("seats", [])]
 
 
-def list_runs(root: Optional[Path] = None) -> list:
+def _is_arena_record(path: Path) -> bool:
+    try:
+        return json.loads((Path(path) / "meta.json").read_text()).get("kind") == "arena_match"
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def list_runs(root: Optional[Path] = None, arena: bool = True) -> list:
+    """Every run under root, oldest first: local and mock matches, plus
+    (with arena) the bridge's records of arena matches in root/arena/. A
+    bridge record of a match that also has a god-view run here (when
+    testing against `arena serve-mock` with a shared runs dir) is left out,
+    so the match isn't counted twice."""
     root = root or runs_dir()
     if not root.is_dir():
         return []
     runs = []
     for d in root.iterdir():
-        if (d / "meta.json").exists():
+        if (d / "meta.json").exists() and not _is_arena_record(d):
             try:
                 runs.append(Run(d))
             except (OSError, json.JSONDecodeError):
                 continue
-    return sorted(runs, key=lambda r: r.meta.get("created", 0))
+    if arena:
+        from poker_harness.arena_records import list_records
+        local = {r.match_id for r in runs}
+        runs += [r for r in list_records(root) if r.raw["match"]["id"] not in local]
+    return sorted(runs, key=lambda r: r.meta.get("created") or 0)

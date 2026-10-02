@@ -81,9 +81,18 @@ def target_from_run(run: Run, hand_num: int, at: Optional[int] = None,
     actions = [e for e in events if e["type"] == "action"]
     if not actions:
         raise ProbeError(f"hand {hand_num} has no decisions")
-    at = len(actions) - 1 if at is None else at
+    # an arena record only has our own bot's decisions
+    probeable = [i for i, e in enumerate(actions) if e.get("decision_id") is not None
+                 and (run.meta.get("perspective") != "own" or e["bot_id"] == run.meta.get("me"))]
+    if not probeable:
+        raise ProbeError(f"hand {hand_num} has no decisions of yours to probe")
+    at = probeable[-1] if at is None else at
     if not 0 <= at < len(actions):
         raise ProbeError(f"--at must be 0..{len(actions) - 1} for this hand")
+    if at not in probeable:
+        raise ProbeError(f"action {at} of hand {hand_num} was {actions[at]['bot_id']}'s, and this "
+                         f"record only has {run.meta.get('me')}'s decisions; try --at "
+                         + " or ".join(str(i) for i in probeable))
     ev  = actions[at]
     did = ev.get("decision_id")
     rec = next((d for d in run.decisions(ev["bot_id"]) if d["decision_id"] == did), None)
@@ -103,7 +112,7 @@ def target_from_run(run: Run, hand_num: int, at: Optional[int] = None,
     warm_states = []
     if warm:
         for d in run.decisions(ev["bot_id"]):
-            if d["decision_id"] >= did:
+            if d["decision_id"] == did:            # ids are in order; strings in arena records
                 break
             s = dict(d["state"])
             s.pop("match_action_log_len", None)
@@ -123,7 +132,7 @@ def _match_log_until(run: Run, decision_id: int) -> list:
     for e in run.events():
         if e["type"] != "action":
             continue
-        if e.get("decision_id") is not None and e["decision_id"] >= decision_id:
+        if e.get("decision_id") == decision_id:
             break
         out.append({"hand_num": e["hand_num"], "seat": e["seat"], "bot_id": e["bot_id"],
                     "action": e["action"], "amount": e["amount"]})

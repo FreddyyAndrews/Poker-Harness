@@ -92,17 +92,21 @@ def verify_run(run) -> dict:
 
 
 def hand_to_spot(hand_events: list, upto: Optional[int] = None) -> Spot:
-    """The hand as a spot (god view: all cards fixed), stopped after the
-    first `upto` actions, or the whole hand."""
+    """The hand as a spot, stopped after the first `upto` actions, or the
+    whole hand. Every card is fixed for a god-view run; for an arena
+    record only the known cards are (unknown hole cards and undealt board
+    cards are left random)."""
     hs, actions, _ = _split(hand_events)
     names = hs["bot_ids"]
+    known = set(hs.get("known_seats", [int(s) for s in hs["hole_cards"]]))
+    board = list(hs["board_plan"])[:hs.get("known_board", 5)]
     spot = Spot(
         players = len(names),
         button  = hs["dealer_seat"],
         stacks  = list(hs["stacks"]),
         blinds  = tuple(hs["blinds"]),
-        cards   = {int(s): c for s, c in hs["hole_cards"].items()},
-        board   = list(hs["board_plan"]),
+        cards   = {int(s): c for s, c in hs["hole_cards"].items() if int(s) in known},
+        board   = board,
         actions = [ActionSpec(ev["street"], ev["action"],
                               ev["amount"] if ev["action"] == "raise" else None, ev["seat"])
                    for ev in actions[:upto]],

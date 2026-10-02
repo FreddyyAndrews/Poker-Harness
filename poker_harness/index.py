@@ -33,7 +33,10 @@ Definitions:
   equity        the acting player's share of the pot at showdown against
                 the actual hole cards of everyone still in, over all
                 remaining boards (hindsight: uses cards the bot couldn't
-                see). Flop, turn and river only; NULL preflop.
+                see). Flop, turn and river only; NULL preflop. In arena
+                records (perspective "own") it's only set when every
+                opponent still in the hand later showed their cards, and
+                hand_players.cards is NULL for hands that weren't shown.
   delta_bb      chips won or lost in the hand, in big blinds
 """
 
@@ -48,7 +51,7 @@ from poker_harness.engine.game import PokerEngine
 from poker_harness.equity import equity as compute_equity
 from poker_harness.runs import Run, list_runs, runs_dir
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -57,7 +60,8 @@ CREATE TABLE IF NOT EXISTS matches (
     match_id TEXT PRIMARY KEY, created REAL, status TEXT, end_reason TEXT,
     n_hands INTEGER, seed INTEGER, small_blind INTEGER, big_blind INTEGER,
     starting_stack INTEGER, ranked INTEGER, duration_s REAL, run_dir TEXT,
-    has_equity INTEGER, events_bytes INTEGER, indexed_at REAL
+    has_equity INTEGER, events_bytes INTEGER, indexed_at REAL,
+    perspective TEXT  -- god (local/mock runs) or own (arena records: one bot's view)
 );
 
 CREATE TABLE IF NOT EXISTS seats (
@@ -179,11 +183,11 @@ def index_run(conn: sqlite3.Connection, run: Run, with_equity: bool = True) -> i
             _index_hand(conn, mid, evs, records, versions, cfg, with_equity)
             n += 1
 
-    conn.execute("INSERT INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+    conn.execute("INSERT INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
         mid, meta.get("created"), meta.get("status"), res.get("end_reason"),
         res.get("n_hands", n), cfg.get("seed"), cfg.get("small_blind"), cfg.get("big_blind"),
         cfg.get("starting_stack"), int(bool(cfg.get("ranked", True))), res.get("duration_s"),
-        str(run.dir), int(with_equity), (run.dir / "events.jsonl").stat().st_size, time.time()))
+        str(run.dir), int(with_equity), _size(run), time.time(), meta.get("perspective", "god")))
     conn.commit()
     return n
 
@@ -196,6 +200,8 @@ def _index_hand(conn, mid, evs, records, versions, cfg, with_equity):
     bb      = hs["blinds"][1]
     pos     = {int(s): p for s, p in hs["positions"].items()}
     holes   = {int(s): c for s, c in hs["hole_cards"].items()}
+    # arena records only know some hole cards (see arena_records.py)
+    known   = set(hs["known_seats"]) if "known_seats" in hs else set(holes)
 
     eng = PokerEngine(hs["hand_id"], names, dealer_seat=hs["dealer_seat"],
                       starting_stacks=dict(zip(names, hs["stacks"])),
@@ -222,7 +228,7 @@ def _index_hand(conn, mid, evs, records, versions, cfg, with_equity):
         live   = [o.seat for o in eng.players if o.in_hand]
 
         eq = None
-        if with_equity and street != "preflop" and len(live) >= 2:
+        if with_equity and street != "preflop" and len(live) >= 2 and set(live) <= known:
             board = "".join(str(c) for c in eng.community_cards)
             r = compute_equity(["".join(holes[s]) for s in live], board=board)
             eq = round(r["players"][live.index(seat)]["equity"], 4)
@@ -287,10 +293,19 @@ def _index_hand(conn, mid, evs, records, versions, cfg, with_equity):
         saw_flop  = int(len(board) >= 3 and f["fold_street"] != "preflop")
         conn.execute("INSERT INTO hand_players VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
             mid, hs["hand_num"], seat, b, versions.get(b), pos.get(seat),
-            hs["stacks"][seat], "".join(holes[seat]), delta, round(delta / bb, 3),
+            hs["stacks"][seat], "".join(holes[seat]) if seat in known else None, delta, round(delta / bb, 3),
             f["vpip"], f["pfr"], f["three_bet"], f["three_bet_opp"], saw_flop,
             int(showdown and in_at_end), int(won_amt.get(seat, 0) > 0),
             int(showdown and won_amt.get(seat, 0) > 0), f["fold_street"], f["decisions"]))
+
+
+def _size(run) -> int:
+    """Size of the run's log, to notice when it has grown since indexing."""
+    for name in ("events.jsonl", "stream.jsonl"):
+        f = run.dir / name
+        if f.exists():
+            return f.stat().st_size
+    return 0
 
 
 def ensure_index(root: Optional[Path] = None, with_equity: bool = True,
@@ -313,7 +328,7 @@ def ensure_index(root: Optional[Path] = None, with_equity: bool = True,
             if run.meta.get("status") == "running":
                 skipped.append(run.match_id)
                 continue
-            size = (run.dir / "events.jsonl").stat().st_size
+            size = _size(run)
             row  = known.get(run.match_id)
             if row and row["events_bytes"] == size and (row["has_equity"] or not with_equity):
                 continue
