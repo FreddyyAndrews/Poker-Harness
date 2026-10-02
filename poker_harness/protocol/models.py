@@ -89,6 +89,8 @@ class MatchRef(Model):
     seats: list[SeatInfo]
     your_seat: Optional[int] = Field(None, description="absent for spectators")
     status: Literal["started", "finished", "aborted"] = "started"
+    challenge_id: Optional[str] = Field(None, description="the challenge this match came from")
+    seek_id: Optional[str] = Field(None, description="your seek this match came from")
 
 
 class Winner(Model):

@@ -209,11 +209,13 @@ every match the bot is still in.
 {"type": "seek_expired", "seek": {"id": "sk_9f2", "format": {"seats": 6}, "status": "expired"}}
 ```
 
-`match_start`: open the match stream now. `your_seat` is your seat.
+`match_start`: open the match stream now. `your_seat` is your seat;
+`challenge_id` or `seek_id` says which challenge or seek of yours the
+match came from, if any.
 
 ```json model=MatchStartEvent
 {"type": "match_start", "match": {"id": "m_7Kq2", "format": {"seats": 2, "hands": 100},
- "rated": false, "your_seat": 1, "status": "started",
+ "rated": false, "your_seat": 1, "status": "started", "challenge_id": "ch_31x",
  "seats": [{"seat": 0, "bot": {"name": "house-shark"}}, {"seat": 1, "bot": {"name": "river-rat"}}]}}
 ```
 

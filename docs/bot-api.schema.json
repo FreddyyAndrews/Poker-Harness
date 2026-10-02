@@ -2017,6 +2017,19 @@
         "MatchRef": {
           "additionalProperties": true,
           "properties": {
+            "challenge_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "the challenge this match came from",
+              "title": "Challenge Id"
+            },
             "format": {
               "$ref": "#/$defs/Format"
             },
@@ -2035,6 +2048,19 @@
               },
               "title": "Seats",
               "type": "array"
+            },
+            "seek_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "your seek this match came from",
+              "title": "Seek Id"
             },
             "status": {
               "default": "started",
@@ -2508,6 +2534,19 @@
         "MatchRef": {
           "additionalProperties": true,
           "properties": {
+            "challenge_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "the challenge this match came from",
+              "title": "Challenge Id"
+            },
             "format": {
               "$ref": "#/$defs/Format"
             },
@@ -2526,6 +2565,19 @@
               },
               "title": "Seats",
               "type": "array"
+            },
+            "seek_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "your seek this match came from",
+              "title": "Seek Id"
             },
             "status": {
               "default": "started",
@@ -2799,6 +2851,19 @@
         "MatchRef": {
           "additionalProperties": true,
           "properties": {
+            "challenge_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "the challenge this match came from",
+              "title": "Challenge Id"
+            },
             "format": {
               "$ref": "#/$defs/Format"
             },
@@ -2817,6 +2882,19 @@
               },
               "title": "Seats",
               "type": "array"
+            },
+            "seek_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "your seek this match came from",
+              "title": "Seek Id"
             },
             "status": {
               "default": "started",
