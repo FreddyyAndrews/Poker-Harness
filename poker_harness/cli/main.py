@@ -27,6 +27,7 @@ full structure.
   arena compares [ID]                  stored comparisons
   arena brief BOT|MATCH                short summary for an agent's context: result, leaks, hands
   arena connect                        play on the arena: the bridge, like lichess-bot
+  arena serve-mock                     a local arena with house bots, to test against
 
 Run `arena <command> -h` for options. Spot notation is described in
 poker_harness/spot.py and `arena spot -h`.
@@ -38,7 +39,8 @@ import random
 import sys
 
 from poker_harness.cli import (
-    brief_cmds, compare_cmds, connect_cmds, index_cmds, match_cmds, probe_cmds, render, test_cmds,
+    brief_cmds, compare_cmds, connect_cmds, index_cmds, match_cmds, mock_cmds, probe_cmds, render,
+    test_cmds,
 )
 from poker_harness.cli.spotargs import SPOT_HELP, add_spot_options as _add_spot_options
 from poker_harness.cli.spotargs import spot_from_args as _spot_from_args
@@ -328,6 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare_cmds.add_parsers(sub)
     brief_cmds.add_parser(sub)
     connect_cmds.add_parser(sub)
+    mock_cmds.add_parser(sub)
     return ap
 
 
@@ -337,7 +340,7 @@ def main(argv=None) -> int:
         return args.fn(args) or 0
     except (CliError, match_cmds.MatchCliError, index_cmds.IndexCliError, SpotError,
             probe_cmds.pr.ProbeError, compare_cmds.cmp.CompareError, brief_cmds.BriefError,
-            connect_cmds.ConnectError, IllegalActionError,
+            connect_cmds.ConnectError, mock_cmds.MockCliError, IllegalActionError,
             ValueError, FileNotFoundError, FileExistsError) as e:
         if getattr(args, "json", False):
             print(json.dumps({"error": str(e)}))

@@ -2,7 +2,11 @@
 and a raw protocol client for the edge cases."""
 import asyncio
 import json
+import socket
+import subprocess
+import sys
 import textwrap
+import time
 
 import httpx
 import pytest
@@ -349,3 +353,29 @@ def test_new_event_stream_replaces_the_old_and_presence(tmp_path):
             await asyncio.sleep(0.3)
             assert not srv.arena.bots["a"].online
     run(go())
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def test_cli_serve_mock_starts(tmp_path):
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    proc = subprocess.Popen([sys.executable, "-m", "poker_harness.cli.main", "serve-mock",
+                             "--port", str(port), "--bot", "me=tok", "--runs", str(tmp_path / "r")],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        for _ in range(100):
+            try:
+                r = httpx.get(f"http://127.0.0.1:{port}/api/token/test",
+                              headers={"Authorization": "Bearer tok"}, timeout=1)
+                break
+            except httpx.TransportError:
+                time.sleep(0.1)
+        assert r.json() == {"ok": True, "bot": "me", "scopes": ["bot:play", "bot:read"]}
+    finally:
+        proc.terminate()
+        _, err = proc.communicate(timeout=10)
+    assert "bot me: token tok" in err

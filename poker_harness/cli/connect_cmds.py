@@ -47,6 +47,8 @@ def cmd_connect(args):
 
     logging.basicConfig(level=getattr(logging, cfg.log_level.upper(), logging.INFO),
                         format="%(asctime)s %(message)s", datefmt="%H:%M:%S", stream=sys.stderr)
+    if cfg.log_level != "debug":
+        logging.getLogger("httpx").setLevel(logging.WARNING)      # one line per request otherwise
     if not Path(cfg.bot.path).exists():
         raise ConnectError(f"bot not found: {cfg.bot.path} (set bot.path in the config or --bot)")
     return asyncio.run(_run(cfg))
