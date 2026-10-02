@@ -1,23 +1,31 @@
-.PHONY: install demo test validate clean
+.PHONY: venv install demo test validate clean
 
-install:
+PYTHON ?= python3.10
+VENV   := .venv
+PIP    := $(VENV)/bin/pip
+PY     := $(VENV)/bin/python
+
+venv:
+	$(PYTHON) -m venv $(VENV)
+
+install: venv
 	@echo ">> Installing Cython<3 (eval7 build dep)"
-	pip3 install "Cython<3"
+	$(PIP) install "Cython<3"
 	@echo ">> Installing eval7 with --no-build-isolation"
-	pip3 install --no-build-isolation eval7==0.1.7
-	@echo ">> Installing rest of requirements"
-	pip3 install flask numpy scipy treys scikit-learn
+	$(PIP) install --no-build-isolation eval7==0.1.7
+	@echo ">> Installing the arena package (editable) + dev/demo extras"
+	$(PIP) install -e ".[dev,demo]"
 
 demo:
-	python3 demo.py
+	$(PY) demo.py
 
 test:
-	python3 -m pytest tests/ -q
+	$(PY) -m pytest -q
 
 validate:
 	@if [ -z "$(BOT)" ]; then echo "usage: make validate BOT=bots/mybot/bot.py"; exit 1; fi
-	python3 sandbox/validator.py $(BOT)
+	$(PY) sandbox/validator.py $(BOT)
 
 clean:
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+	find . -type d -name __pycache__ -not -path "./$(VENV)/*" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -not -path "./$(VENV)/*" -delete

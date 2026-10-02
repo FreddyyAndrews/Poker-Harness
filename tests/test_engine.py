@@ -1,8 +1,5 @@
 """Tests for the Fullhouse game engine."""
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from engine.game import PokerEngine, STARTING_STACK, BIG_BLIND, SMALL_BLIND
+from arena.engine.game import PokerEngine, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 
 
 def make_engine(n=6):

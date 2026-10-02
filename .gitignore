@@ -13,3 +13,10 @@ __pycache__/
 
 # Node
 node_modules/
+
+# Local env and run output
+.venv/
+*.egg-info/
+.pytest_cache/
+runs/
+.arena/

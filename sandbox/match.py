@@ -25,7 +25,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from engine.game import PokerEngine, STARTING_STACK
+from arena.engine.game import PokerEngine, STARTING_STACK
 
 RUNNER_PATH    = Path(__file__).parent / "runner.py"
 SANDBOX_IMAGE  = os.environ.get("SANDBOX_IMAGE", "fullhouse-sandbox:latest")
