@@ -135,18 +135,14 @@ ratings and out of the default data agents learn from.
 - Every result has an ID, so agents only fetch full details when they need
   them.
 
-`spot`, `spots`, `hand` and `equity` exist today (see
-[Using the arena CLI](#using-the-arena-cli)). Still planned:
+`spot`, `spots`, `hand`, `equity`, `match`, the queries and
+`probe`/`sweep` exist today (see [Using the arena CLI](#using-the-arena-cli)).
+Still planned:
 
 ```bash
-arena probe mybot <spot> -n 20                  # how often it picks each action, plus short reasoning
-arena sweep mybot <spot> --vary bet=200..2000:200
 arena runout <spot> --seats mybot,shark --runs 500   # play to the end many times; EV per bot
 arena test mybot --suite river-spots            # saved spots with expected actions
 ```
-
-Probes will run in a separate bot process and can't write to the bot's
-memory.
 
 ---
 
@@ -157,8 +153,8 @@ memory.
    `arena spot/hand/equity`, bot protocol v2 with the `Seat` interface,
    the async match runner, the run store and replay.
 2. **Logs and evaluation:** the cross-match index and queries
-   (`arena stats/hands/decisions/sql`) are **done** (2a). Still to do:
-   `arena probe/sweep` (2b), test suites with expected answers (2c),
+   (`arena stats/hands/decisions/sql`, 2a) and `arena probe/sweep` (2b)
+   are **done**. Still to do: test suites with expected answers (2c),
    duplicate-deal comparisons with confidence intervals (2d), and short
    briefs for agents (2e).
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
@@ -332,6 +328,55 @@ hole cards actually still in, on the flop, turn and river. It uses cards
 the bot couldn't see, which is what makes leak queries like "folded with
 70% equity" possible. Indexing computes it exactly; `--no-equity` skips it.
 
+### Probe a bot
+
+Ask a bot what it does in a position without playing a game. Every probe
+starts the bot in a fresh process, so it can't affect a match.
+
+```bash
+arena probe bots/mybot 6max-tptk-vs-flop-lead -n 20     # a library spot (or spot options)
+arena probe --from six1:26 --at 3 --warm -n 5           # a decision from a stored match
+arena probe bots/mybot-v2 --from six1:26 --at 3         # ... asked of a different bot
+```
+```
+probe p-20261002-143051-5f78 · bots/aggressor/bot.py · 6max-tptk-vs-flop-lead · 20 sample(s)
+s3 · flop · board Kd 7c 2s · AsKh · pot 2,450 · stack 9,100 · facing 600 (20% pot odds)
+  call     1     5%
+  raise   19    95%   to 3,600 (36.0bb, 1.47x pot) x9, to 4,800 (48.0bb, 1.96x pot) x6, ...
+  decide() median 0.0ms max 0.1ms · errors none
+details: arena probes p-20261002-143051-5f78 --verbose
+```
+
+Answers are shown as the engine would apply them (a too-small raise shows
+as the minimum raise). With `--from`, the bot gets exactly the state it was
+sent in the match, including the real `match_action_log`, and the output
+shows what it did then. `--warm` first replays every earlier state that
+seat saw in the match (answers ignored), so a bot that models opponents in
+memory knows what it knew at that point. Samples run in one process unless
+`--fresh`.
+
+`arena sweep` re-probes a spot while varying things, and marks where the
+bot's most common answer flips:
+
+```bash
+arena sweep bots/mybot hu-missed-flush-river-bet --vary bet=100..1500:200
+arena sweep bots/mybot --players 6 --button 3 --actions "pre: CO r250" --to-act BTN \
+  --vary "cards.BTN=TT+,AQs+,AKo,A5s"          # a range: one row per hand class
+arena sweep bots/mybot --from six1:26 --at 5 --vary turn=*
+```
+```
+  variant    fold check  call raise  avg raise   n
+  bet 500      0%    0%  100%    0%          -   3
+  bet 700    100%    0%    0%    0%          -   3  < call -> fold
+```
+
+`--vary` takes `bet=` (the last raise in the actions), `cards.SEAT=` (hands
+or a range), `flop1=`..`river=` (a board card, `*` for every card) and
+`stack.SEAT=`; repeat it to combine. Variants that aren't legal positions
+are listed as invalid. Probes and sweeps are stored in `runs/probes/`;
+`arena probes` lists them and `arena probes ID --verbose` shows every
+answer with its notes.
+
 To run every bot in its own locked-down container instead of a local
 process:
 
@@ -414,6 +459,7 @@ arena/match.py        async MatchRunner: plays a match through seats, records ev
 arena/runs.py         run store (runs/<id>/): writer, reader, event schema
 arena/replay.py       rebuild/verify hands from events; any point in a hand -> spot
 arena/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
+arena/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
 arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
 spots/                the spot library
