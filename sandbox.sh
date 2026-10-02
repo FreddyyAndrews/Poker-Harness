@@ -4,13 +4,13 @@
 
 set -euo pipefail
 
-IMAGE="fullhouse-sandbox:latest"
+IMAGE="${SANDBOX_IMAGE:-poker-harness-sandbox:latest}"
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
 build() {
   echo "Building sandbox image..."
-  docker build -t "$IMAGE" ./sandbox
+  docker build -f sandbox/Dockerfile -t "$IMAGE" .
   echo "Done: $IMAGE"
 }
 
@@ -19,18 +19,24 @@ build() {
 test_sandbox() {
   BOT="${1:-bots/template/bot.py}"
   echo "Testing sandbox with $BOT"
-  echo '{"type":"action_request","hand_id":"test","street":"preflop","seat_to_act":0,"pot":150,"community_cards":[],"current_bet":100,"min_raise_to":200,"amount_owed":100,"can_check":false,"your_cards":["As","Kh"],"your_stack":9900,"your_bet_this_street":0,"players":[],"action_log":[]}' \
+  # under $HOME: Docker VMs like Colima only share the home directory
+  mkdir -p "$HOME/.cache/poker-harness"
+  BOT_DIR=$(mktemp -d "$HOME/.cache/poker-harness/test.XXXXXX")
+  cp "$BOT" "$BOT_DIR/bot.py"
+  # protocol v2: one decide request; expect "ready" then "action"
+  echo '{"type":"decide","id":1,"timeout":2,"state":{"type":"action_request","hand_id":"test","street":"preflop","seat_to_act":0,"pot":150,"community_cards":[],"current_bet":100,"min_raise_to":200,"amount_owed":100,"can_check":false,"your_cards":["As","Kh"],"your_stack":9900,"your_bet_this_street":0,"players":[],"action_log":[]}}' \
     | docker run --rm -i \
         --network none \
         --memory 768m \
         --memory-swap 768m \
         --cpus 0.5 \
         --read-only \
-        --no-new-privileges \
+        --security-opt no-new-privileges \
         --user 1000:1000 \
         --tmpfs /tmp:size=20m \
-        -v "$(pwd)/$BOT:/bot/bot.py:ro" \
+        -v "$BOT_DIR:/bot:ro" \
         "$IMAGE"
+  rm -rf "$BOT_DIR"
 }
 
 # ── Run a full match (prod mode) ─────────────────────────────────────────────

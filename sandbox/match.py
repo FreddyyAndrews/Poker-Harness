@@ -1,40 +1,38 @@
 """
-Fullhouse Match Orchestrator
-Runs a multi-hand match between N bots (2-9).
+Match runner: plays a multi-hand match between 2-9 bots.
 
-Dev mode (USE_DOCKER=false):  bots run as local subprocesses via runner.py
-Prod mode (USE_DOCKER=true):  bots run in isolated Docker containers
+Each bot runs in an arena.seats.SubprocessBotSeat: a local process by
+default, or a Docker container with USE_DOCKER=true (build the image with
+./sandbox.sh build). Seats are fixed for the match; a bot with no chips
+sits out.
 
-Submission formats supported (auto-detected from path):
-  - bot.py         single-file bot (legacy)
+Submission formats (auto-detected from the path):
+  - bot.py         single-file bot
   - bot/           directory containing bot.py + optional data/
-  - bot.zip        archive containing bot.py at root + optional data/
+  - bot.zip        archive containing bot.py at the root + optional data/
 
-The game engine is pure Python — this file handles all I/O and process management.
+Phase 1d of the roadmap replaces this loop with the async MatchRunner and
+the event store; the CLI below will stay as a thin wrapper.
 """
 
+import asyncio
 import json
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import time
 import uuid
-import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from arena.engine.game import PokerEngine, STARTING_STACK, next_button
+from arena.seats import SubprocessBotSeat
 
-RUNNER_PATH    = Path(__file__).parent / "runner.py"
-SANDBOX_IMAGE  = os.environ.get("SANDBOX_IMAGE", "fullhouse-sandbox:latest")
+SANDBOX_IMAGE  = os.environ.get("SANDBOX_IMAGE", "poker-harness-sandbox:latest")
 USE_DOCKER     = os.environ.get("USE_DOCKER", "false").lower() == "true"
-ACTION_TIMEOUT = int(os.environ.get("ACTION_TIMEOUT", "2"))
+ACTION_TIMEOUT = float(os.environ.get("ACTION_TIMEOUT", "2"))
 
-# Resource limits enforced at the container level. Bumped from 256 -> 768 MB
-# in May 2026 to accommodate optional /bot/data/ payloads (CFR blueprints,
-# NN weights, lookup tables) that bots load at module-import time.
+# Container limits (USE_DOCKER=true only). 768 MB leaves room for bots that
+# load lookup tables or model weights from data/ at import time.
 CONTAINER_MEMORY     = os.environ.get("BOT_MEMORY", "768m")
 CONTAINER_CPUS       = os.environ.get("BOT_CPUS",   "0.5")
 CONTAINER_TMPFS_SIZE = os.environ.get("BOT_TMPFS",  "20m")
@@ -44,172 +42,16 @@ CONTAINER_TMPFS_SIZE = os.environ.get("BOT_TMPFS",  "20m")
 MATCH_LOG_MAX_ENTRIES = 200
 
 
-# ---------------------------------------------------------------------------
-# Bot mount preparation
-# ---------------------------------------------------------------------------
-
-def _prepare_bot_mount(bot_path):
-    """Returns (mount_src, cleanup_dir).
-    Accepts: directory, .zip archive (extracted into tempdir), or .py file (legacy, copied into tempdir).
-    """
-    p = os.path.abspath(bot_path)
-
-    if os.path.isdir(p):
-        return p, None
-
-    if p.endswith(".zip") and os.path.isfile(p):
-        tmpdir = tempfile.mkdtemp(prefix="fhbot_")
-        with zipfile.ZipFile(p) as zf:
-            for member in zf.infolist():
-                name = member.filename
-                if name.startswith("/") or name.startswith("\\"):
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    raise ValueError("Unsafe zip path (absolute): " + repr(name))
-                norm = os.path.normpath(os.path.join(tmpdir, name))
-                if not norm.startswith(tmpdir + os.sep) and norm != tmpdir:
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    raise ValueError("Unsafe zip path (traversal): " + repr(name))
-                if (member.external_attr >> 16) & 0o170000 == 0o120000:
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    raise ValueError("Unsafe zip path (symlink): " + repr(name))
-            zf.extractall(tmpdir)
-        if not os.path.isfile(os.path.join(tmpdir, "bot.py")):
-            shutil.rmtree(tmpdir, ignore_errors=True)
-            raise ValueError("Zip archive must contain bot.py at the root")
-        return tmpdir, tmpdir
-
-    if p.endswith(".py") and os.path.isfile(p):
-        tmpdir = tempfile.mkdtemp(prefix="fhbot_")
-        shutil.copy(p, os.path.join(tmpdir, "bot.py"))
-        return tmpdir, tmpdir
-
-    raise ValueError("Unsupported bot path (must be .py, .zip, or directory): " + repr(p))
-
-
-# ---------------------------------------------------------------------------
-# Bot process wrapper
-# ---------------------------------------------------------------------------
-
-class BotProcess:
-    """Wraps one bot in a subprocess or Docker container.
-    Communication: newline-delimited JSON over stdin/stdout.
-    """
-
-    def __init__(self, bot_id, bot_path):
-        self.bot_id   = bot_id
-        self.bot_path = bot_path
-        self.errors   = []
-        self._cleanup_dir = None
-
-        try:
-            self._mount_src, self._cleanup_dir = _prepare_bot_mount(bot_path)
-        except Exception as e:
-            self.errors.append("mount_prep_failed: " + str(e))
-            self._proc = None
-            return
-
-        self._proc = self._start()
-
-    def _start(self):
-        container_bot_py = "/bot/bot.py"
-
-        if USE_DOCKER:
-            cmd = [
-                "docker", "run",
-                "--rm",
-                "-i",
-                "--network", "none",
-                "--memory",  CONTAINER_MEMORY,
-                "--memory-swap", CONTAINER_MEMORY,
-                "--cpus",    CONTAINER_CPUS,
-                "--read-only",
-                "--no-new-privileges",
-                "--user",    "1000:1000",
-                "--tmpfs",   "/tmp:size=" + CONTAINER_TMPFS_SIZE,
-                "-v",        self._mount_src + ":/bot:ro",
-                "-e",        "ACTION_TIMEOUT=" + str(ACTION_TIMEOUT),
-                "-e",        "BOT_PATH=" + container_bot_py,
-                "-e",        "BOT_DATA_DIR=/bot/data",
-                SANDBOX_IMAGE,
-            ]
-        else:
-            cmd = [sys.executable, "-u", str(RUNNER_PATH)]
-
-        host_bot_py = os.path.join(self._mount_src, "bot.py")
-        env = {
-            **os.environ,
-            "BOT_PATH":       container_bot_py if USE_DOCKER else host_bot_py,
-            "BOT_DATA_DIR":   "/bot/data" if USE_DOCKER else os.path.join(self._mount_src, "data"),
-            "ACTION_TIMEOUT": str(ACTION_TIMEOUT),
-        }
-
-        return subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-        )
-
-    def act(self, game_state):
-        if self._proc is None:
-            return {"action": "fold", "error": "no_process"}
-        try:
-            self._proc.stdin.write(json.dumps(game_state) + "\n")
-            self._proc.stdin.flush()
-            line = self._proc.stdout.readline()
-            if not line:
-                raise EOFError("Bot process died")
-            action = json.loads(line.strip())
-            if "error" in action:
-                self.errors.append(action["error"])
-            return action
-        except Exception as e:
-            self.errors.append(str(e))
-            return {"action": "fold", "error": str(e)}
-
-    def warmup(self):
-        """One-shot 'wake up the bot before hand 1' call.
-
-        Bots that load CFR blueprints, NN weights, or large lookup tables
-        at module-import time can take 10-30s to do their first decision.
-        Without this they would blow through the 2s/action timeout on
-        hand 1 and auto-fold for free. The runner gives this call a
-        longer alarm (see WARMUP_TIMEOUT in runner.py) and we discard
-        the response — its only purpose is to let imports finish.
-        """
-        if self._proc is None:
-            return
-        try:
-            self._proc.stdin.write(json.dumps({"type": "warmup"}) + "\n")
-            self._proc.stdin.flush()
-            self._proc.stdout.readline()  # discard
-        except Exception as e:
-            self.errors.append("warmup_failed: " + str(e))
-
-    def stderr_lines(self):
-        lines = []
-        if self._proc is None:
-            return lines
-        try:
-            self._proc.stderr.flush()
-        except Exception:
-            pass
-        return lines
-
-    def stop(self):
-        if self._proc is not None:
-            try:
-                self._proc.stdin.close()
-            except Exception:
-                pass
-            try:
-                self._proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
-        if self._cleanup_dir and os.path.isdir(self._cleanup_dir):
-            shutil.rmtree(self._cleanup_dir, ignore_errors=True)
+def make_seat(bot_id, bot_path, on_event=None):
+    return SubprocessBotSeat(
+        bot_id, bot_path,
+        timeout       = ACTION_TIMEOUT,
+        on_event      = on_event,
+        docker_image  = SANDBOX_IMAGE if USE_DOCKER else None,
+        docker_memory = CONTAINER_MEMORY,
+        docker_cpus   = CONTAINER_CPUS,
+        docker_tmpfs  = CONTAINER_TMPFS_SIZE,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -223,21 +65,28 @@ def _inject_match_log(state, match_log):
 
 
 def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None):
+    return asyncio.run(_run_match(match_id, bot_paths, n_hands, verbose, seed))
+
+
+async def _run_match(match_id, bot_paths, n_hands, verbose, seed):
     bot_ids = list(bot_paths.keys())
     n = len(bot_ids)
     assert 2 <= n <= 9, "Need 2-9 bots, got " + str(n)
 
-    procs   = {bid: BotProcess(bid, path) for bid, path in bot_paths.items()}
-    stacks  = {bid: STARTING_STACK for bid in bot_ids}
+    seat_events = []
+    seats    = {bid: make_seat(bid, path, seat_events.append) for bid, path in bot_paths.items()}
+    errors   = {bid: [] for bid in bot_ids}
+    stacks   = {bid: STARTING_STACK for bid in bot_ids}
     hand_log = []
     match_action_log = []
     dealer = None
     start_ts = time.time()
 
-    # Warm-up: give every bot one untimed-by-2s call so they can finish
-    # heavy imports / lookup-table loads before hand 1.
-    for p in procs.values():
-        p.warmup()
+    # Start every bot in parallel; each gets its warmup budget to import.
+    await asyncio.gather(*(s.start() for s in seats.values()))
+    for bid, s in seats.items():
+        if s.status != "ready":
+            errors[bid].append(f"{s.status}: {s.status_detail}")
 
     try:
         for hand_num in range(n_hands):
@@ -257,19 +106,18 @@ def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None):
                 hand_num       = hand_num,
             )
 
-            result = _play_hand(engine, procs, bot_ids, match_action_log, hand_num, verbose)
+            result = await _play_hand(engine, seats, bot_ids, errors,
+                                      match_action_log, hand_num, verbose)
             hand_log.append({"hand_num": hand_num, "hand_id": hand_id, **result})
 
             for bid, s in result["final_stacks"].items():
                 stacks[bid] = s
 
-
             if verbose and hand_num % 25 == 0:
                 _print_stacks(hand_num, n_hands, stacks)
 
     finally:
-        for p in procs.values():
-            p.stop()
+        await asyncio.gather(*(s.close() for s in seats.values()))
 
     return {
         "match_id":     match_id,
@@ -279,22 +127,27 @@ def run_match(match_id, bot_paths, n_hands=400, verbose=False, seed=None):
         "duration_s":   round(time.time() - start_ts, 2),
         "final_stacks": stacks,
         "chip_delta":   {bid: stacks[bid] - STARTING_STACK for bid in bot_ids},
-        "bot_errors":   {bid: procs[bid].errors for bid in bot_ids},
+        "bot_errors":   errors,
+        "bot_events":   seat_events,
         "hands":        hand_log,
     }
 
 
-def _play_hand(engine, procs, active_bots, match_action_log, hand_num, verbose):
+async def _play_hand(engine, seats, bot_ids, errors, match_action_log, hand_num, verbose):
     state = _inject_match_log(engine.start_hand(), match_action_log)
     steps = 0
 
     while state.get("type") == "action_request":
-        seat   = state["seat_to_act"]
-        bot_id = active_bots[seat]
-        action = procs[bot_id].act(state)
+        seat     = state["seat_to_act"]
+        bot_id   = bot_ids[seat]
+        decision = await seats[bot_id].act(state)
+        action   = decision.action
+        if decision.error:
+            errors[bot_id].append(decision.error)
 
         if verbose:
-            print("  [" + bot_id + "] " + str(action), file=sys.stderr)
+            note = f"  ({decision.error})" if decision.error else ""
+            print("  [" + bot_id + "] " + str(action) + note, file=sys.stderr)
 
         match_action_log.append({
             "hand_num": hand_num,

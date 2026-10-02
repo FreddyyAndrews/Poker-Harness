@@ -249,3 +249,46 @@ def test_callback_seat_sync_async_and_timeout():
     assert run(CallbackSeat("c", fast).act(STATE)).action["amount"] == 500
     d = run(CallbackSeat("c", slow, timeout=0.05).act(STATE))
     assert d.error == "timeout" and d.action == {"action": "fold"}
+
+
+# ---------------------------------------------------------------------------
+# Match runner and Docker
+# ---------------------------------------------------------------------------
+
+def test_match_survives_problem_bots(bot):
+    sys.path.insert(0, str(Path(__file__).parent.parent / "sandbox"))
+    import match
+    paths = {
+        "shark":   "bots/shark/bot.py",
+        "chatty":  str(bot("import os\ndef decide(s):\n    print('hi'); os.write(1, b'junk\\n')\n    return {'action': 'call'}\n")),
+        "crashy":  str(counter_bot(bot, body="if N % 7 == 0: os._exit(1)")),
+        "broken":  str(bot("def decide(:\n")),
+    }
+    r = match.run_match("t", paths, n_hands=60, seed=1)
+    assert r["n_hands"] > 0
+    assert sum(r["final_stacks"].values()) == 40_000
+    assert r["bot_errors"]["chatty"] == []
+    assert "crashed" in r["bot_errors"]["crashy"]
+    assert r["bot_errors"]["broken"][0].startswith("load_failed")
+    assert any(e["type"] == "bot_restart" for e in r["bot_events"])
+
+
+def _docker_image_ready():
+    if not shutil.which("docker"):
+        return False
+    r = subprocess.run(["docker", "image", "inspect", "poker-harness-sandbox:latest"],
+                       capture_output=True)
+    return r.returncode == 0
+
+
+@pytest.mark.skipif(not _docker_image_ready(), reason="docker or sandbox image not available")
+def test_docker_seat(bot):
+    p = counter_bot(bot, body="if N == 2: time.sleep(5)")
+    seat, ds = run(session(p, [STATE] * 3, docker_image="poker-harness-sandbox:latest",
+                           timeout=0.5))
+    assert ds[0].error is None and ds[0].logs[0]["data"]["n"] == 1
+    assert ds[1].error == "timeout" and ds[1].restarted
+    assert ds[2].error is None
+    left = subprocess.run(["docker", "ps", "-q", "--filter", "name=arena-t-"],
+                          capture_output=True, text=True).stdout.strip()
+    assert left == ""

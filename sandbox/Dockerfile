@@ -1,13 +1,18 @@
 # Fullhouse Hackathon — Bot Sandbox Container
 # One container per bot per match. Stateless, disposable.
 #
-# Security properties enforced at runtime (see match.py docker run call):
-#   --network none          no internet access
-#   --memory 768m           OOM-killed if exceeded (was 256m, bumped May 2026)
-#   --cpus 0.5              half a core max
-#   --read-only             filesystem is read-only
-#   --no-new-privileges     can't escalate permissions
-#   --user 1000:1000        non-root
+# Build from the repo root (the runner lives in arena/runner/):
+#   docker build -f sandbox/Dockerfile -t poker-harness-sandbox:latest .
+#   (or ./sandbox.sh build)
+#
+# Security properties enforced at runtime (see SubprocessBotSeat._command
+# in arena/seats.py):
+#   --network none                       no internet access
+#   --memory 768m                        OOM-killed if exceeded
+#   --cpus 0.5                           half a core max
+#   --read-only                          filesystem is read-only
+#   --security-opt no-new-privileges     can't escalate permissions
+#   --user 1000:1000                     non-root
 
 # Python 3.10 (not 3.11+) — eval7 0.1.7's pre-generated C files reference
 # longintrepr.h, which Python 3.11 moved from Include/ to Include/cpython/.
@@ -40,15 +45,15 @@ RUN apt-get update \
 # Create non-root user
 RUN useradd -u 1000 -m botuser
 
-# Runner lives at a fixed path — mounted or baked in
-COPY runner.py /runner.py
+# Bot runner (protocol v2, stdlib only) at a fixed path
+COPY arena/runner/bot_runner.py /runner.py
 RUN chmod +r /runner.py
 
-# Bot code is mounted at runtime: -v /path/to/bot.py:/bot/bot.py:ro
+# Bot code is mounted at runtime: -v /path/to/botdir:/bot:ro
 # We do NOT copy bot code into the image — each bot gets its own volume mount
 
 USER botuser
 WORKDIR /home/botuser
 
-# stdin/stdout is the communication channel
+# stdin/stdout carry the protocol (see the runner's docstring)
 CMD ["python3", "-u", "/runner.py"]

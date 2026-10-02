@@ -327,15 +327,15 @@ class _BotTimeout(Exception):
     Cross-platform replacement for signal.SIGALRM (Unix-only)."""
 
 
-def _call_with_timeout(fn, arg, timeout_s):
-    """Run fn(arg) on a daemon thread, wait up to timeout_s, return its
+def _call_with_timeout(fn, args, timeout_s):
+    """Run fn(*args) on a daemon thread, wait up to timeout_s, return its
     result. Raises _BotTimeout on timeout, re-raises whatever fn raised."""
     box = {"value": None, "error": None}
     done = threading.Event()
 
     def _worker():
         try:
-            box["value"] = fn(arg)
+            box["value"] = fn(*args)
         except BaseException as e:
             box["error"] = e
         finally:
@@ -356,13 +356,38 @@ def load_bot(path: str):
     return module
 
 
+class _ValidatorCtx:
+    """Stand-in for the runner's ctx, for bots that define decide(state, ctx)."""
+    bot_id      = "bot_under_test"
+    decision_id = 0
+
+    def log(self, msg=None, **data):
+        pass
+
+    def time_left(self):
+        return TIMEOUT_SECONDS
+
+
+def _wants_ctx(fn) -> bool:
+    import inspect
+    try:
+        params = list(inspect.signature(fn).parameters.values())
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind == p.VAR_POSITIONAL for p in params):
+        return True
+    return len([p for p in params
+                if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]) >= 2
+
+
 def run_test(bot_module, test: dict) -> dict:
     """Run one test state and return result dict."""
     state  = test["state"]
     start  = time.time()
+    args   = (state, _ValidatorCtx()) if _wants_ctx(bot_module.decide) else (state,)
 
     try:
-        result  = _call_with_timeout(bot_module.decide, state, TIMEOUT_SECONDS)
+        result  = _call_with_timeout(bot_module.decide, args, TIMEOUT_SECONDS)
         elapsed = time.time() - start
     except _BotTimeout:
         return {
