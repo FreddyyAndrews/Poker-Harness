@@ -14,6 +14,8 @@ MatchRunner: plays a multi-hand match between 2-9 seats and records it.
   receives every event too, for live viewers.
 - A match always has a seed (one is picked if not given), so its deals
   can be reproduced, and every hand can be replayed from its events.
+- With reset_stacks, every hand starts from the starting stacks; results
+  are the running total of each hand's result.
 """
 
 import asyncio
@@ -42,6 +44,10 @@ class MatchConfig:
     seed: Optional[int] = None
     match_log_entries: int = 200                  # state["match_action_log"] length
     ranked: bool = True
+    # Every hand starts from the starting stacks (chips won or lost are
+    # tallied, not carried over), so hands are independent. Used for
+    # duplicate evaluation; see arena/compare.py.
+    reset_stacks: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -109,6 +115,7 @@ class MatchRunner:
         config: Optional[MatchConfig] = None,
         writer: Optional[RunWriter] = None,
         on_event: Optional[Callable] = None,
+        labels: Optional[dict] = None,     # extra info stored in meta.json
         keep_hands: bool = False,          # keep hand_complete results in memory
         verbose: bool = False,
     ):
@@ -125,9 +132,11 @@ class MatchRunner:
 
         if self.config.seed is None:
             self.config.seed = random.randrange(1, 10**9)
+        self.labels   = labels or {}
         self.stacks   = {b: self.config.stacks.get(b, self.config.starting_stack)
                          for b in self.bot_ids}
         self.errors   = {b: [] for b in self.bot_ids}
+        self.totals   = {b: 0 for b in self.bot_ids}     # reset_stacks running results
         self.restarts = {b: 0 for b in self.bot_ids}
         self.hands    = []
         self.hands_played  = 0
@@ -190,6 +199,7 @@ class MatchRunner:
             "created": started, "status": status,
             "arena_version": arena.__version__,
             "config": self.config.to_dict(), "seats": self._seat_meta(),
+            "labels": self.labels,
         }
         if result is not None:
             meta["result"] = {k: v for k, v in result.items() if k != "hands"}
@@ -301,7 +311,10 @@ class MatchRunner:
 
         for bid, s in state["final_stacks"].items():
             delta = s - self.stacks[bid]
-            self.stacks[bid] = s
+            if self.config.reset_stacks:
+                self.totals[bid] += delta
+            else:
+                self.stacks[bid] = s
             state.setdefault("delta", {})[bid] = delta
         self._emit("hand_end",
                    showdown       = state["showdown"],
@@ -326,8 +339,11 @@ class MatchRunner:
             "duration_s":   round(time.time() - started, 2),
             "end_reason":   reason,
             "error":        error,
-            "final_stacks": dict(self.stacks),
-            "chip_delta":   {b: self.stacks[b] - start[b] for b in self.bot_ids},
+            "final_stacks": {b: start[b] + self.totals[b] for b in self.bot_ids}
+                            if self.config.reset_stacks else dict(self.stacks),
+            "chip_delta":   {b: self.totals[b] for b in self.bot_ids}
+                            if self.config.reset_stacks
+                            else {b: self.stacks[b] - start[b] for b in self.bot_ids},
             "bot_errors":   self.errors,
             "error_counts": {b: len(e) for b, e in self.errors.items()},
             "restarts":     self.restarts,
