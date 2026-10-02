@@ -133,7 +133,8 @@ def connect(root: Optional[Path] = None, readonly: bool = False) -> sqlite3.Conn
 # Building
 # ---------------------------------------------------------------------------
 
-def _kind(action: str, total: int, bet_before: int, street: str) -> str:
+def action_kind(action: str, total: int, bet_before: int, street: str) -> str:
+    """fold | check | call | bet | raise (see the module docstring)."""
     if action in ("fold", "check", "call"):
         return action
     # raise / all_in: total is the player's street total after acting
@@ -227,7 +228,7 @@ def _index_hand(conn, mid, evs, records, versions, cfg, with_equity):
             eq = round(r["players"][live.index(seat)]["equity"], 4)
 
         total = ev["amount"] if ev["action"] in ("raise", "all_in") else 0
-        kind  = _kind(ev["action"], total, bet_before, street)
+        kind  = action_kind(ev["action"], total, bet_before, street)
 
         f = flags[seat]
         f["decisions"] += 1

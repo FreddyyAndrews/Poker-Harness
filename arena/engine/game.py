@@ -296,6 +296,13 @@ class PokerEngine:
 
         return self._advance_if_street_over(seat)
 
+    def preview(self, raw: dict, seat: Optional[int] = None) -> dict:
+        """The action a reply would turn into (lenient rules, as in a live
+        match), without applying it: {"action", "amount"}."""
+        seat = self.to_act if seat is None else seat
+        a = self._validate(seat, raw)
+        return {"action": a.action, "amount": a.amount}
+
     def legal_actions(self, seat: Optional[int] = None) -> dict:
         """What `seat` (default: the seat to act) may do right now.
         Raise amounts are totals for the street, like the "raise" action."""

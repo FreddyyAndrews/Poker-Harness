@@ -113,11 +113,11 @@ def test_decision_equity_matches_equity_calculator(root):
 
 
 def test_kinds():
-    assert idx._kind("raise", 300, 100, "preflop") == "raise"
-    assert idx._kind("raise", 200, 0, "flop") == "bet"
-    assert idx._kind("all_in", 80, 100, "flop") == "call"     # all-in for less
-    assert idx._kind("all_in", 900, 100, "turn") == "raise"
-    assert idx._kind("check", 0, 0, "river") == "check"
+    assert idx.action_kind("raise", 300, 100, "preflop") == "raise"
+    assert idx.action_kind("raise", 200, 0, "flop") == "bet"
+    assert idx.action_kind("all_in", 80, 100, "flop") == "call"     # all-in for less
+    assert idx.action_kind("all_in", 900, 100, "turn") == "raise"
+    assert idx.action_kind("check", 0, 0, "river") == "check"
 
 
 def test_incremental_rebuild_and_no_equity(root):
