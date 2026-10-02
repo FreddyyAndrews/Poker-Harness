@@ -215,6 +215,12 @@ from source on Python 3.10 so it also works on ARM hosts.)
 without prompts, prints a short summary, and takes `--json` for the full
 structure. Errors exit with code 2 (as `{"error": ...}` with `--json`).
 
+The CLI documents itself, so an agent with only the installed package can
+learn it: `arena guide` explains the workflow, conventions and file
+layout (`arena guide loop` for one section), and every command's `-h`
+has a description, examples and help for every option. Tests check all
+of that, and that every example in the help actually parses.
+
 **Describe a situation in one line.** Cards you don't fix are random from
 `--seed`. God view shows every hole card, the undealt runout and each
 player's equity:

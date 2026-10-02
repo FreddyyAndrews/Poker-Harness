@@ -87,6 +87,12 @@ README.md for the architecture and the plan (T1-T8).
   uvicorn server on a random port and connect the real bridge. The
   engine's lenient action rules live in `lenient_action` (game.py), shared
   with `normalize_action`; change them in one place.
+- The CLI must document itself (tests/test_help.py enforces it): every
+  command needs a description, examples (in poker_harness/cli/helptext.py
+  EXAMPLES, or its own epilog) and help for every option (helptext.py
+  ARG_HELP / PATH_ARG_HELP, or `help=`). Every example must parse. When a
+  command is added or changes, update `arena guide`
+  (poker_harness/cli/guide.py) too.
 - Tests must be deterministic: give anything whose result depends on the
   cards a seed or fixed cards.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
