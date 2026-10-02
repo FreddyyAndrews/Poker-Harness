@@ -9,6 +9,11 @@ README.md for the architecture and the plan (T1-T8).
 - Everything here is public and used by both other repos: keep the
   engine's rules and the bot protocol identical for local development and
   production, and change the protocol only through docs/bot-api.md.
+- The bot API: docs/bot-api.md (prose, with examples tagged
+  ```json model=Name```) and poker_harness/protocol/models.py must agree;
+  tests validate every example. After changing a model, regenerate
+  docs/bot-api.schema.json (`python -m poker_harness.protocol.schema`).
+  Only additive changes within a version (see the spec's Compatibility).
 
 ## Git workflow
 

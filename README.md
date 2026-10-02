@@ -11,8 +11,9 @@ library of a three-repo system modelled on lichess and lichess-bot.
 **Status:** the local toolkit works today: matches, spots, replay,
 cross-match queries, probes, test suites, duplicate comparisons and agent
 briefs, all from the `arena` CLI (see
-[What works today](#what-works-today)). Next: the bot API spec, the
-bridge client and a mock server (see [Plan](#plan)).
+[What works today](#what-works-today)). The bot API is specified in
+[docs/bot-api.md](docs/bot-api.md); next are the bridge client and a mock
+server (see [Plan](#plan)).
 
 ---
 
@@ -102,7 +103,8 @@ Work in this repo:
   with a clean install and the full test suite on macOS (3.10, 3.12) and
   Linux x86_64 (3.12).
 
-**T2. Bot API spec** (`docs/bot-api.md` plus protocol models)
+**T2. Bot API spec** (**done**, v0.3.0: [docs/bot-api.md](docs/bot-api.md),
+`poker_harness/protocol/`, [docs/bot-api.schema.json](docs/bot-api.schema.json))
 - The lichess-style API that poker-arena implements and the bridge
   consumes: the bot event stream (challenges, match start/finish), the
   match stream (hand start with your cards only, public actions, `decide`
@@ -112,7 +114,9 @@ Work in this repo:
 - The `decide` state is exactly the state bots get locally, so a bot runs
   unchanged in both places.
 - Shared Python models for every message, used by the bridge, the mock
-  server and poker-arena.
+  server and poker-arena, plus a JSON Schema for other languages. Tests
+  validate every example in the spec against the models and check the
+  engine's real decide state matches the documented one field for field.
 
 **T3. Bridge client (`arena connect`)**
 - lichess-bot's job for poker: read `config.yml` (server, token, bot
@@ -581,6 +585,7 @@ poker_harness/probe.py        probes and sweeps: targets from spots or match dec
 poker_harness/expect.py       expected answers for spots (used by arena test)
 poker_harness/compare.py      duplicate comparisons: seat rotations, paired statistics
 poker_harness/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
+poker_harness/protocol/       arena bot API message models (spec: docs/bot-api.md) and JSON Schema export
 poker_harness/tournament.py   Swiss pairing and standings
 spots/                        the spot library; spots/suites/ holds test suites
 sandbox/match.py              upstream-compatible wrapper around poker_harness/match.py (used by demo.py)
