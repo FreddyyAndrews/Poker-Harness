@@ -8,9 +8,11 @@ This is a fork of [fullhouse-engine](https://github.com/uzlez/fullhouse-engine),
 the engine from the 2026 Fullhouse Hackathon. We keep its No-Limit Hold'em
 engine and bot protocol, and build an arena around them.
 
-**Status:** early. The upstream engine, match runner and reference bots work
-today (see [What works today](#what-works-today)). Everything else in this
-README is the plan.
+**Status:** phase 1 (core) is done and phase 2 (logs and evaluation) is
+nearly done: matches, spots, replay, cross-match queries, probes, test
+suites and duplicate comparisons all work from the `arena` CLI (see
+[What works today](#what-works-today)). The server, frontend, human seats
+and LLM bots are still planned.
 
 ---
 
@@ -135,8 +137,8 @@ ratings and out of the default data agents learn from.
 - Every result has an ID, so agents only fetch full details when they need
   them.
 
-`spot`, `spots`, `hand`, `equity`, `match`, the queries and
-`probe`/`sweep` exist today (see [Using the arena CLI](#using-the-arena-cli)).
+`spot`, `spots`, `hand`, `equity`, `match`, the queries, `probe`/`sweep`,
+`test` and `compare` exist today (see [What works today](#what-works-today)).
 Still planned:
 
 ```bash
@@ -153,10 +155,9 @@ arena runout <spot> --seats mybot,shark --runs 500   # play to the end many time
    the async match runner, the run store and replay.
 2. **Logs and evaluation:** the cross-match index and queries
    (`arena stats/hands/decisions/sql`, 2a), `arena probe/sweep` (2b) and
-   test suites with expected answers (`arena test`, 2c) are **done**.
-   Still to do:
-   duplicate-deal comparisons with confidence intervals (2d), and short
-   briefs for agents (2e).
+   test suites with expected answers (`arena test`, 2c) and duplicate
+   comparisons (`arena compare`, 2d) are **done**. Still to do:
+   short briefs for agents (2e).
 3. **Server and frontend:** lobby, live view, replay, bot inspector.
 4. **Human seats:** play mode with optional god view, edit and fork from
    replay.
@@ -177,6 +178,16 @@ arena runout <spot> --seats mybot,shark --runs 500   # play to the end many time
 ---
 
 ## What works today
+
+### Install
+
+Use Python 3.10. eval7 doesn't build on 3.11+ (on macOS: `brew install python@3.10`).
+
+```bash
+make install     # creates .venv, installs Cython<3, eval7 (--no-build-isolation), then this package
+source .venv/bin/activate
+make test        # engine tests, including fuzzers
+```
 
 ### Using the arena CLI
 
@@ -247,20 +258,6 @@ eval7 syntax, `any` for a random hand):
 ```bash
 arena equity AsKh QdQc --board Kd7c2s
 arena equity AsAh "QQ+,AKs" any
-```
-
-### Inherited from upstream
-
-Everything below is inherited from upstream and still works.
-
-### Install
-
-Use Python 3.10. eval7 doesn't build on 3.11+ (on macOS: `brew install python@3.10`).
-
-```bash
-make install     # creates .venv, installs Cython<3, eval7 (--no-build-isolation), then this package
-source .venv/bin/activate
-make test        # engine tests, including fuzzers
 ```
 
 ### Run a match
@@ -431,14 +428,39 @@ arena match run --docker bots/shark/bot.py bots/aggressor/bot.py
 Containers have no network, a read-only filesystem, 768 MB and half a core
 (`BOT_MEMORY`, `BOT_CPUS` to change).
 
-### Demo UI
+### Compare two bots
+
+Is the new version better? A single match can't tell you: over a few
+hundred hands, card luck swamps skill. `arena compare` plays duplicate
+deals and reports the difference with a 95% confidence interval.
 
 ```bash
-python3 demo.py   # http://localhost:5001  (DEMO_PORT to change)
+arena compare bots/mybot-v2 bots/mybot                       # head-to-head
+arena compare bots/mybot-v2 bots/mybot --field bots/shark/bot.py --field bots/aggressor/bot.py
+```
+```
+compare c-20261002-144130-dddd · field · template vs mathematician · field shark, ref_bot_2 · duplicate (3 rotations) · 400 deals · seed 5
+  template          -17.5 bb/100  (95% CI -20.7 .. -14.2)
+  mathematician      -9.9 bb/100  (95% CI -12.2 .. -7.6)
+  difference         -7.5 bb/100  (95% CI -10.8 .. -4.3)
+  -> mathematician is better (the interval excludes 0)
+  duplicate: interval ±3.2 vs ±5.7 for the same hands played plainly (1.78x tighter)
 ```
 
-Six reference bots play single matches or a 3-round Swiss tournament, with a
-live log and hand replay. The planned frontend will replace this.
+How it works:
+- Every hand starts from the starting stacks (`MatchConfig.reset_stacks`),
+  so hands are independent and a seed deals the same cards to the same
+  seat every time.
+- **Head-to-head:** each deal is played twice, with A and B swapping seats.
+- **Field:** A and B each play the same opponents on the same deals, and
+  every player rotates through every seat. The difference is measured deal
+  by deal, so the shared card luck cancels.
+- When the interval includes 0, the output estimates how many hands would
+  show a gap of the measured size.
+
+The matches are stored and indexed like any others (ids `c-...-A-r0`,
+...), so `arena stats` and `arena hands` work on them. `arena compares`
+lists comparisons; `arena compares ID` shows one again.
 
 ### The bot contract
 
@@ -487,6 +509,15 @@ The protocol between host and bot is newline-delimited JSON; see
 
 The LLM broker will relax these rules for approved LLM calls.
 
+### Demo UI (from upstream)
+
+```bash
+python3 demo.py   # http://localhost:5001  (DEMO_PORT to change)
+```
+
+Six reference bots play single matches or a 3-round Swiss tournament, with a
+live log and hand replay. The planned frontend will replace this.
+
 ### Repo layout
 
 ```
@@ -502,6 +533,7 @@ arena/replay.py       rebuild/verify hands from events; any point in a hand -> s
 arena/index.py        SQLite index of all runs (runs/index.sqlite): schema and stat definitions
 arena/probe.py        probes and sweeps: targets from spots or match decisions, warm-up, variants
 arena/expect.py       expected answers for spots (used by arena test)
+arena/compare.py      duplicate comparisons: seat rotations, paired statistics
 arena/runner/         bot side of protocol v2 (bot_runner.py, stdlib only) and bot packaging
 arena/tournament.py   Swiss pairing and standings
 spots/                the spot library; spots/suites/ holds test suites

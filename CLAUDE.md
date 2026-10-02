@@ -55,6 +55,8 @@ README.md for the goals, the planned architecture and the roadmap.
   tests use seats with fixed behaviour so every number is known exactly.
 - Tests must not write into the repo: point `ARENA_RUNS`, `ARENA_HOME` and
   `ARENA_SPOTS` at `tmp_path` (or pass a `root`).
+- Judge whether a bot change helped with `arena compare NEW OLD` (duplicate
+  deals, confidence interval), not with a single match's chip count.
 - When changing a bot, run `arena test BOT --suite basics` (and any suite
   for that bot) before committing; exit code 1 means a spot failed.
 - `sandbox/` and `demo.py` are upstream code that the roadmap will replace.
