@@ -379,3 +379,34 @@ def test_normalize_action_matches_the_engine():
             raw = rng.choice(replies)
             assert normalize_action(state, raw) == eng.preview(raw)
             state = eng.apply_action(state["seat_to_act"], raw)
+
+
+# ---------------------------------------------------------------------------
+# Lenient mode never changes a legal action
+# ---------------------------------------------------------------------------
+
+def test_fold_facing_an_all_in_stays_a_fold():
+    # regression: with no raise possible, a fold was turned into a call
+    eng = make([10_000, 10_000], dealer=0)
+    eng.start_hand()
+    state = eng.apply_action(0, {"action": "all_in"})
+    assert state["legal_actions"]["can_raise"] is False
+    assert normalize_action(state, {"action": "fold"}) == {"action": "fold", "amount": 0}
+    result = eng.apply_action(1, {"action": "fold"})
+    assert eng.action_log[-1]["action"] == "fold"
+    assert result["final_stacks"] == {"s0": 10_100, "s1": 9_900}
+
+
+def test_fuzz_lenient_keeps_every_legal_action():
+    """Whatever strict mode accepts, lenient mode must apply unchanged."""
+    rng = random.Random(9)
+    for _ in range(1_500):
+        eng = _random_table(rng)
+        state = eng.start_hand()
+        while state["type"] == "action_request":
+            raw = _sample_legal(rng, state)
+            strict = eng._validate_strict(state["seat_to_act"], raw)
+            lenient = eng._validate(state["seat_to_act"], raw)
+            assert (lenient.action, lenient.amount) == (strict.action, strict.amount), (raw, state["legal_actions"])
+            assert normalize_action(state, raw) == {"action": strict.action, "amount": strict.amount}
+            state = eng.apply_action(state["seat_to_act"], raw)

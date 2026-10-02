@@ -154,7 +154,7 @@ def lenient_action(raw, *, owed: int, can_raise: bool, min_raise_to: int,
     except (TypeError, ValueError):
         amount = 0
 
-    if act not in ACTIONS:
+    if act not in ACTIONS or act == "fold":
         return "fold", 0
 
     def check_or_call():
@@ -163,7 +163,8 @@ def lenient_action(raw, *, owed: int, can_raise: bool, min_raise_to: int,
     if act in ("check", "call"):
         return check_or_call()
     if not can_raise:
-        # nobody left who could respond, or can't cover more than a call
+        # a raise or all-in that nobody could answer, or that can't cover
+        # more than a call
         return check_or_call()
     if act == "raise":
         amount = max(amount, min_raise_to)
