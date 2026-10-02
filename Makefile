@@ -1,6 +1,7 @@
 .PHONY: venv install demo test validate clean
 
-PYTHON ?= python3.10
+# newest supported interpreter on PATH (eval7 wheels: see README "Install")
+PYTHON ?= $(shell command -v python3.12 || command -v python3.11 || command -v python3.10 || command -v python3)
 VENV   := .venv
 PIP    := $(VENV)/bin/pip
 PY     := $(VENV)/bin/python
@@ -9,11 +10,6 @@ venv:
 	$(PYTHON) -m venv $(VENV)
 
 install: venv
-	@echo ">> Installing Cython<3 (eval7 build dep)"
-	$(PIP) install "Cython<3"
-	@echo ">> Installing eval7 with --no-build-isolation"
-	$(PIP) install --no-build-isolation eval7==0.1.7
-	@echo ">> Installing the arena package (editable) + dev/demo extras"
 	$(PIP) install -e ".[dev,demo]"
 
 demo:

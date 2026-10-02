@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "poker-harness"
-version = "0.1.0"
+version = "0.2.0"
 description = "Poker bot toolkit: NLHE engine, bot protocol and a local development arena for LLM-built bots."
 readme = "README.md"
 license = { text = "MIT" }
-# eval7 0.1.7 does not build on 3.11+ (longintrepr.h moved)
-requires-python = ">=3.10,<3.11"
-# eval7 must be installed first with --no-build-isolation; see `make install`
-dependencies = ["eval7==0.1.7", "pyyaml>=6"]
+requires-python = ">=3.10"
+# eval7 0.1.11 ships wheels only (no source package): Linux x86_64 for
+# Python 3.9-3.15, macOS and Windows for 3.9-3.12. See README "Install".
+dependencies = ["eval7>=0.1.11,<0.2", "pyyaml>=6"]
 
 [project.scripts]
 arena = "poker_harness.cli.main:main"
@@ -25,5 +25,5 @@ include = ["poker_harness*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# eval7 0.1.7 uses deprecated pyparsing names
+# eval7 uses deprecated pyparsing names
 filterwarnings = ["ignore::DeprecationWarning:eval7.*"]

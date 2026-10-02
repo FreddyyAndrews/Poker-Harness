@@ -92,14 +92,15 @@ The cross-repo milestones are:
 
 Work in this repo:
 
-**T1. Become an installable library**
-- Rename the import package from `arena` to `poker_harness` (the `arena`
-  command stays), so it doesn't clash with poker-arena.
-- One-command install from git, pinned by tag, for both other repos.
-- Resolve the hand-evaluator install: eval7 needs Python 3.10 and a
-  special build, which is friction in a fresh cloud session. Either prove
-  a setup script makes it reliable, or move to an evaluator with prebuilt
-  wheels and newer Python support.
+**T1. Become an installable library** (**done**, v0.2.0)
+- The import package is `poker_harness` (the `arena` command stays), so it
+  doesn't clash with poker-arena.
+- One-command install from git, pinned by tag, for both other repos (see
+  [Install](#install)).
+- eval7 0.1.11 installs from prebuilt wheels, so no build step and Python
+  3.10+ (Linux x86_64 up to 3.15; macOS and Windows up to 3.12). Verified
+  with a clean install and the full test suite on macOS (3.10, 3.12) and
+  Linux x86_64 (3.12).
 
 **T2. Bot API spec** (`docs/bot-api.md` plus protocol models)
 - The lichess-style API that poker-arena implements and the bridge
@@ -160,7 +161,6 @@ Work in this repo:
 ### Open decisions
 
 - Rating system (decided in poker-arena).
-- Hand evaluator (T1).
 
 ### Dropped from the earlier plan
 
@@ -176,13 +176,31 @@ Work in this repo:
 
 ### Install
 
-Use Python 3.10. eval7 doesn't build on 3.11+ (on macOS: `brew install python@3.10`).
+Python 3.10 or newer. The hand evaluator, eval7, installs from prebuilt
+wheels: Linux x86_64 on Python 3.10-3.15, macOS and Windows on 3.10-3.12.
+Other platforms (for example Linux on ARM) aren't supported yet, because
+eval7 0.1.11 publishes no source package.
+
+From a clone:
 
 ```bash
-make install     # creates .venv, installs Cython<3, eval7 (--no-build-isolation), then this package
+make install     # creates .venv with the newest python3.1x it finds, installs this package
 source .venv/bin/activate
-make test        # engine tests, including fuzzers
+make test        # all tests, including the engine fuzzers
 ```
+
+As a dependency (how poker-bot-template and poker-arena use it), pinned to
+a release:
+
+```bash
+pip install "poker-harness @ git+https://github.com/FreddyyAndrews/Poker-Harness@v0.2.0"
+# without git:
+pip install https://github.com/FreddyyAndrews/Poker-Harness/archive/refs/tags/v0.2.0.tar.gz
+```
+
+The Python package is `poker_harness`; the command is `arena`. (The
+sandbox Docker image for bots is separate: it still builds eval7 0.1.7
+from source on Python 3.10 so it also works on ARM hosts.)
 
 ### Using the arena CLI
 

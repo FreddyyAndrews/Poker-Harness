@@ -27,8 +27,11 @@ README.md for the architecture and the plan (T1-T8).
 
 ## Environment
 
-- Python 3.10 only (eval7 0.1.7 doesn't build on 3.11+). The venv is `.venv/`;
-  `make install` creates it.
+- Python 3.10+ (eval7 0.1.11 wheels: Linux x86_64 up to 3.15, macOS and
+  Windows up to 3.12). The venv is `.venv/`; `make install` creates it.
+- The package is `poker_harness`; the command is `arena`. Release by
+  bumping the version in pyproject.toml and poker_harness/__init__.py and
+  pushing a `vX.Y.Z` tag; the other repos pin tags.
 - Tests: `make test` (or `.venv/bin/python -m pytest -q`).
 - Quick end-to-end check:
   `.venv/bin/python sandbox/match.py bots/shark/bot.py bots/aggressor/bot.py --hands 200 --seed 1`
