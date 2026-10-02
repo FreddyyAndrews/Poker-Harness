@@ -109,6 +109,34 @@ def next_button(stacks: list, prev: Optional[int] = None) -> int:
     raise ValueError("No seat has chips")
 
 
+# Names for the seats between the big blind and the button, by how many
+# there are (UTG acts first preflop, CO is just before the button).
+_MIDDLE_POSITIONS = {
+    0: [],
+    1: ["UTG"],
+    2: ["UTG", "CO"],
+    3: ["UTG", "HJ", "CO"],
+    4: ["UTG", "LJ", "HJ", "CO"],
+    5: ["UTG", "UTG+1", "LJ", "HJ", "CO"],
+    6: ["UTG", "UTG+1", "UTG+2", "LJ", "HJ", "CO"],
+}
+
+
+def seat_positions(stacks: list, button: int) -> dict:
+    """{seat: position name} for seats with chips, e.g. BTN, SB, BB, UTG,
+    HJ, CO. Heads-up the button is also the small blind and is named BTN."""
+    n    = len(stacks)
+    live = [(button + i) % n for i in range(n) if stacks[(button + i) % n] > 0]
+    if button not in live:
+        raise ValueError(f"Button seat {button} has no chips")
+    if len(live) < 2:
+        raise ValueError("Need at least 2 seats with chips")
+    if len(live) == 2:
+        return {live[0]: "BTN", live[1]: "BB"}
+    names = ["BTN", "SB", "BB"] + _MIDDLE_POSITIONS[len(live) - 3]
+    return dict(zip(live, names))
+
+
 def _parse_card(text) -> eval7.Card:
     try:
         return eval7.Card(str(text))
@@ -283,6 +311,22 @@ class PokerEngine:
             "min_raise_to": min(self.current_bet + self.min_raise, max_to) if can_raise else None,
             "max_raise_to": max_to if can_raise else None,
         }
+
+    @property
+    def board_plan(self) -> list:
+        """All five board cards this hand will deal, including undealt ones
+        (god view only; never show this to a bot)."""
+        return [str(c) for c in self._board_plan]
+
+    @property
+    def waiting_on(self) -> frozenset:
+        """Seats that still have to act on this street."""
+        return frozenset(s for s in self._needs_to_act if self.players[s].is_active)
+
+    def positions(self) -> dict:
+        """{seat: position name} for this hand's seats with chips."""
+        return seat_positions([0 if p.sitting_out else 1 for p in self.players],
+                              self.dealer_seat)
 
     # -----------------------------------------------------------------------
     # Seat helpers (sitting-out seats are skipped everywhere)

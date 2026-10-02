@@ -11,7 +11,7 @@ license = { text = "MIT" }
 # eval7 0.1.7 does not build on 3.11+ (longintrepr.h moved)
 requires-python = ">=3.10,<3.11"
 # eval7 must be installed first with --no-build-isolation; see `make install`
-dependencies = ["eval7==0.1.7"]
+dependencies = ["eval7==0.1.7", "pyyaml>=6"]
 
 [project.optional-dependencies]
 dev  = ["pytest>=7"]

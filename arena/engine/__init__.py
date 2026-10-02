@@ -8,6 +8,7 @@ from arena.engine.game import (
     IllegalActionError,
     PokerEngine,
     next_button,
+    seat_positions,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "IllegalActionError",
     "PokerEngine",
     "next_button",
+    "seat_positions",
 ]
